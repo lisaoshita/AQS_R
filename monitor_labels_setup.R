@@ -54,12 +54,24 @@ parameter <- data.frame(Parameter = unique(methods$Parameter.Code),
 
 parameter$Parameter <- as.character(parameter$Parameter)
 
+parameter$parameter_label <- str_to_lower(parameter$parameter_label)
+parameter$parameter_label <- str_replace_all(parameter$parameter_label, 
+                                             pattern = " ",
+                                             replacement = "_")
+
+write.csv(parameter, file = "parameter.csv")
+
 # for method code
 methods <- methods %>% select(Method.Code, Equivalent.Method)
+
 colnames(methods) <- c("Method", "method_label")
 methods$Method <- as.character(methods$Method)
 
-write.csv(parameter, file = "parameter.csv")
+methods$method_label <- str_to_lower(methods$method_label)
+methods$method_label <- str_replace_all(methods$method_label,
+                                        pattern = " ",
+                                        replacement = "_")
+
 write.csv(methods, file = "methods.csv")
 
 
@@ -75,6 +87,12 @@ durations <- durations %>% select(Duration.Code,
                                   Duration.Description)
 
 colnames(durations)[1] <- "Sample.Duration"
+
+durations$Duration.Description <- str_to_lower(durations$Duration.Description)
+
+durations$Duration.Description <- str_replace_all(durations$Duration.Description,
+                                                  pattern = " ",
+                                                  replacement = "_")
 
 write.csv(durations, file = "durations.csv")
 
@@ -93,6 +111,11 @@ units$Unit.Code <- str_pad(units$Unit.Code,
                            side = "left")
 
 colnames(units) <- c("Unit", "unit_label")
+
+units$unit_label <- str_to_lower(units$unit_label)
+units$unit_label <- str_replace_all(units$unit_label,
+                                    pattern = " ",
+                                    replacement = "_")
 
 write.csv(units, file = "units.csv")
 
