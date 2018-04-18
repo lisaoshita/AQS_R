@@ -13,7 +13,6 @@ library(reshape2) # used in read.aqs for level = 4
 
 # function will take file name as character string
 # file must be in working directory
-# option to set the time zone, defaults to UTC
 
 
 read.aqs <- function(filename, level = 2, time.zone = "UTC") {
@@ -142,37 +141,25 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   # LEVEL 4
   # ========
   
-  data <- melt(data, # convert data to long format
-               id.vars = c("Monitor.Label", "Date.Time"), 
-               value.name = "Sample.Value")
-  data <- data[, -3] # drop "variable" column that melt creates
+  test <- reshape2::dcast(data, Date.Time ~ Monitor.Label, 
+                          fun.aggregate = sum, 
+                          na.rm = T, 
+                          value.var = "Sample.Value") # not working correctly!!!
   
   if (level == 4) return(data)
   
   
   
-  
 }
 
-data <- read.aqs(filename = "AMP501_1595753-0.txt", level = 3)
 
 test <- read.aqs(filename = "AMP501_1595753-0.txt", level = 4)
 
 
-# still working on this: 
 
-
-test <- data
-
-test <- reshape2::melt(data, id.vars = c("Monitor.Label", "Date.Time"), value.name = "Sample.Value")
-
-test <- test[order(test$Date.Time), ]
-
-
-
-
-
-
+data %>% group_by(Monitor.Label) %>% summarise(max = max(Sample.Value, na.rm = T),
+                                               min = min(Sample.Value, na.rm = T),
+                                               sum = sum(Sample.Value, na.rm = T))
 
 
 
