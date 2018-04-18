@@ -7,19 +7,21 @@ original <- read.table("AMP501_1595753-0.txt", sep = "|", header = TRUE,
                        colClasses = c(rep("character", 12), "numeric", 
                                       rep("character", 13)))
 
-# packages used in read.aqs
-library(rebus)
-library(stringr)
 
-# load csv files with monitor labels
+library(reshape2) # used in read.aqs for level = 4
 
 
 # function will take file name as character string
 # file must be in working directory
 # option to set the time zone, defaults to UTC
 
+
 read.aqs <- function(filename, level = 2, time.zone = "UTC") {
+  
   # -----------------------------------------------------------
+  # ========
+  # LEVEL 0
+  # ========
   data <- read.table(file = filename, # read in data
                      sep = "|", 
                      header = TRUE,
@@ -30,8 +32,10 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   if (level == 0) return(data)
   
   # -----------------------------------------------------------
-  # convert dates and start.times to POSIX
-  data$Date.Time <- as.POSIXct(paste(paste(substr(data$Date, 1, 4), 
+  # ========
+  # LEVEL 1
+  # ========
+  data$Date.Time <- as.POSIXct(paste(paste(substr(data$Date, 1, 4), # convert date + start time to POSIX
                                            substr(data$Date, 5, 6), 
                                            substr(data$Date, 7, 8), 
                                            sep = "-"), data$Start.Time, sep = " "), 
@@ -42,8 +46,10 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   if (level == 1) return(data)
   
   # -----------------------------------------------------------
-  # default level, concatenate monitor IDs
-  data$Monitor.ID <- paste(data$State.Code,
+  # ========
+  # LEVEL 2 (default level)
+  # ========
+  data$Monitor.ID <- paste(data$State.Code, # concatenate monitor IDs
                            data$County.Code,
                            data$Site.ID,
                            data$Parameter,
@@ -53,7 +59,7 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
                            data$Method,
                            sep = "-")
   
-  if (level == 2) { # stop if level = 2, drop all unecessary columns, reorder columns
+  if (level == 2) {
     
     data <- data[, -c(1:8)]
     data <- data[c("Monitor.ID", "Date.Time", "Sample.Value")]
@@ -62,7 +68,9 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   }
   
   # -----------------------------------------------------------
-  # apply monitor labels to Monitor.ID
+  # ========
+  # LEVEL 3
+  # ========
   
   # load data sets, join with data by shared column 
   regions <- read.csv(file = "H:/TECH/Lisa/R/AQS_R/monitor_labels/regions.csv", 
@@ -128,21 +136,37 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
     return(data)
     
   }
+  
   # -----------------------------------------------------------
+  # ========
+  # LEVEL 4
+  # ========
+  
+  data <- melt(data, # convert data to long format
+               id.vars = c("Monitor.Label", "Date.Time"), 
+               value.name = "Sample.Value")
+  data <- data[, -3] # drop "variable" column that melt creates
+  
+  if (level == 4) return(data)
+  
+  
+  
   
 }
 
 data <- read.aqs(filename = "AMP501_1595753-0.txt", level = 3)
 
+test <- read.aqs(filename = "AMP501_1595753-0.txt", level = 4)
+
 
 # still working on this: 
 
 
+test <- data
 
+test <- reshape2::melt(data, id.vars = c("Monitor.Label", "Date.Time"), value.name = "Sample.Value")
 
-
-
-# issues: 
+test <- test[order(test$Date.Time), ]
 
 
 
