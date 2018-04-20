@@ -71,22 +71,33 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   # LEVEL 3
   # ========
   
+  # WRITE A FUNCT TO CONDENSE THIS SECTION
+  
   # load data sets, join with data by shared column 
-  regions <- read.csv(file = "H:/TECH/Lisa/R/AQS_R/monitor_labels/regions.csv", 
-                      header = TRUE,
-                      colClasses = c("character", "character"))
-  parameters <- read.csv(file = "H:/TECH/Lisa/R/AQS_R/monitor_labels/parameters.csv", 
-                         header = TRUE,
-                         colClasses = c("character", "character"))
-  durations <- read.csv(file = "H:/TECH/Lisa/R/AQS_R/monitor_labels/durations.csv", 
+  regions <- read.table(file = "monitor.labels/regions.txt",
+                        sep = "|",
                         header = TRUE,
                         colClasses = c("character", "character"))
-  units <- read.csv(file = "H:/TECH/Lisa/R/AQS_R/monitor_labels/units.csv",
-                    header = TRUE,
-                    colClasses = c("character", "character"))
-  methods <- read.csv(file = "H:/TECH/Lisa/R/AQS_R/monitor_labels/methods.csv",
+  
+  parameters <- read.table(file = "monitor.labels/parameters.txt", 
+                           sep = "|",
+                           header = TRUE,
+                           colClasses = c("character", "character"))
+  
+  durations <- read.table(file = "monitor.labels/durations.txt", 
+                          sep = "|",
+                          header = TRUE,
+                          colClasses = c("character", "character"))
+  
+  units <- read.table(file = "monitor.labels/units.txt",
+                      sep = "|",
                       header = TRUE,
                       colClasses = c("character", "character"))
+  
+  methods <- read.table(file = "monitor.labels/methods.txt",
+                        sep = "|",
+                        header = TRUE,
+                        colClasses = c("character", "character"))
   
   # Adding State - County labels 
   data$code <- paste(data$State.Code, data$County.Code, sep = "-")
@@ -122,45 +133,36 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   # Concatenating all columns 
   data$Monitor.Label <- paste(data$region,
                               data$Site.ID,
-                              data$parameter_label,
+                              data$parameter.label,
                               data$POC,
                               data$Duration.Description,
-                              data$unit_label,
-                              data$method_label,
+                              data$Unit.Label,
+                              data$Method.Label,
                               sep = "-")
-
-  if (level == 3) { # if level 3, stop here and return data
   
-    data <- data[, c("Monitor.Label", "Date.Time", "Sample.Value")]
-    return(data)
-    
-  }
+  data <- data[, c("Monitor.Label", "Date.Time", "Sample.Value")]
+
+  if (level == 3) return(data)
   
   # -----------------------------------------------------------
   # ========
   # LEVEL 4
   # ========
   
-  test <- reshape2::dcast(data, Date.Time ~ Monitor.Label, 
-                          fun.aggregate = sum, 
-                          na.rm = T, 
-                          value.var = "Sample.Value") # not working correctly!!!
+  data <- reshape2::dcast(data, # Long -> wide format 
+                          Date.Time ~ Monitor.Label, 
+                          value.var = "Sample.Value",
+                          na.rm = TRUE,
+                          fill = 0) 
   
   if (level == 4) return(data)
-  
+
   
   
 }
 
 
 test <- read.aqs(filename = "AMP501_1595753-0.txt", level = 4)
-
-
-
-data %>% group_by(Monitor.Label) %>% summarise(max = max(Sample.Value, na.rm = T),
-                                               min = min(Sample.Value, na.rm = T),
-                                               sum = sum(Sample.Value, na.rm = T))
-
 
 
 
