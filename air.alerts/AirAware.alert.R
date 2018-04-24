@@ -11,12 +11,13 @@
 
 # -----------------------------------------
 
+library(twilio)
+
 # load data
-file <- read.csv(file = "CDFPM10.csv", header = TRUE, stringsAsFactors = FALSE)
+file <- read.csv(file = "air.alerts/CDFPM10.csv", header = TRUE, stringsAsFactors = FALSE)
 
 # convert Date to Posix
 file$Date <- as.POSIXct(file$Date, format = "%m/%d/%Y %H:%M", tz = "UTC") # timezone? 
-pm10 <- file$pm10
 
 
 # change from 44 to 200 (for testing)
@@ -33,44 +34,59 @@ alert.log <- data.frame(Date.Created = NA,
 # ==============================================
 
 if (sum(file$pm10 >= 175, na.rm = T) > 0 & 
-    sum(file$pm10 >= 800, na.rm = T) == 0 & 
-    file$Date[which(file$pm10 > 175)] > as.POSIXct("8:00", format = "%H:%M", tz = "UTC")) {
+    sum(file$pm10 >= 800, na.rm = T) == 0) {
   
-  # ---------
-  # check log
-  # ---------
+  # -----------
+  # check time
+  # -----------
   
-  # --------
-  # send SMS
-  # --------
-  Sys.setenv(TWILIO_SID = sid)
-  Sys.setenv(TWILIO_TOKEN = token)
+  time <- as.numeric(format(file$Date[which(file$pm10 >= 175)],"%H"))
   
-  tw_send_message(to = "9169499719", 
-                  from = "number", 
-                  body = "TEXT ALERT���")
-  
-  # ----------
-  # update log
-  # ----------
-  messages.log <- tw_get_messages_list()
-  
-  alert.log$Date.Created <- messages.log[[length(messages.log)]]$date_created
-  alert.log$Body <- messages.log[[length(messages.log)]]$body
-  alert.log$Status <- messages.log[[length(messages.log)]]$status
-  
-  if (is.null(messages.log[[length(messages.log)]]$error_code)) {
-    alert.log$Error.Code <- "None"
-    alert.log$Error.Message <- "None"
+  if (time > 8) {
+    
+    # ---------
+    # check log
+    # ---------
+    
+    # log <- read.csv("air.alerts/alert.log.csv",
+    #                 header = T,
+    #                 stringsAsFactors = F)
+    
+    # fix this 
+    
+    # --------
+    # send SMS
+    # --------
+    
+    Sys.setenv(TWILIO_SID = "sid")
+    Sys.setenv(TWILIO_TOKEN = "token")
+    
+    tw_send_message(to = "9169499719", 
+                    from = "num", 
+                    body = "TEXT ALERT blahbalhbalh")
+    
+    # ----------
+    # update log
+    # ----------
+    messages.log <- tw_get_messages_list()
+    
+    alert.log$Date.Created <- messages.log[[1]]$date_created # reformat this date - turn into date + time 
+    alert.log$Body <- messages.log[[1]]$body
+    alert.log$Status <- messages.log[[1]]$status
+    
+    if (is.null(messages.log[[1]]$error_code)) {
+      alert.log$Error.Code <- "None"
+      alert.log$Error.Message <- "None"
+    }
+
+    write.table(alert.log, 
+                file = "air.alerts/alert.log.csv",
+                sep = ",",
+                col.names = F,
+                row.names = F, 
+                append = T)
+
   }
-  
-  write.table(alert.log, 
-              file = "alert.log.txt", 
-              append = T, 
-              row.names = F,
-              col.names = T,
-              sep = "|")
-  
 } 
 
 
