@@ -140,14 +140,13 @@ text.alert <- function(filename) {
 text.alert(filename = "air.alerts/CDFPM10.csv")
 
 
+# ==============================================================================
+# NEED TO FIX:
 
-
-
-
-
-
-
-
+# alert.log dates are in UTC time zone 
+# UTC is ahead of LA time 
+# will have problems with comparing UTC time with Sys.time() in 3rd if statement
+# ==============================================================================
 
 
 
