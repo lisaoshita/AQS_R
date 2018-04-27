@@ -9,7 +9,7 @@ library(xlsx)
 
 # ---------------------------------------------------
 # Function to load excel file with subscriber numbers
-#     - takes filename as string 
+#     - takes filename argument as character string 
 #     - returns phone numbers as character string
 # note: renamed subscriber list file to make it easier to load
 # ---------------------------------------------------
