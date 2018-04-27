@@ -57,7 +57,7 @@ text.alert <- function(filename) {
   if (sum(file$pm10 >= 175, na.rm = T) > 0 & 
       sum(file$pm10 >= 800, na.rm = T) == 0) {
     
-    time <- as.numeric(format(file$Date[which(file$pm10 >= 175)],"%H"))
+    time <- as.numeric(format(file$Date[which(file$pm10 >= 175)], "%H"))
     
     # 2nd IF statement -------------
     if (time < 8) {
@@ -66,9 +66,8 @@ text.alert <- function(filename) {
     
     } else if (time > 8) {
       
-      log <- xlsx::read.xlsx(file = "/Users/lisaoshita/Desktop/AQS_R/air.alerts/alertlog.xlsx",
-                             sheetName = "alert.log",
-                             header = TRUE)
+      log <- read.csv(file = "air.alerts/alert.log.csv",
+                      header = TRUE)
       
       dates <- as.Date(substr(log$Date.Sent, 1, 10), format = "%Y-%m-%d")
       
@@ -79,47 +78,51 @@ text.alert <- function(filename) {
         
       } else {
         
+        alert.log <- data.frame(Date.Sent = NA, # intialize empty df for text info 
+                                To = NA,
+                                From = NA,
+                                Body = NA,
+                                Status = NA, 
+                                Error.Code = NA,
+                                Error.Message = NA)
+        
         # send SMS message ---------------------------------------
         Sys.setenv(TWILIO_SID = "ACa471eea1d61917cce7d77ac2c1637889")
         Sys.setenv(TWILIO_TOKEN = "a31cfe18cbdff3a5297d4dd9df941042")
         
         tw_send_message(to = "9169499719", 
                         from = "9168238560", 
-                        body = "new text!!!!!")
+                        body = "(EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.")
         
-        # update log ---------------------------------------------
-        message.log <-tw_get_messages_list() # get list of messages
-        alert.log <- as.data.frame(do.call(rbind, message.log[1]), stringsAsFactors = FALSE) # convert to data frame
+        # update alert.log ---------------------------------------
+        alert.log$Date.Sent <- Sys.time()
         
-        # dropping unecessary columns 
-        alert.log <- alert.log[, c("date_sent", "to", "from", 
-                                   "body", "status", "direction", 
-                                   "error_code", "error_message")]
+        message.log <- tw_get_messages_list()[[1]] # list of messages (1 = most recent text)
         
-        # renaming columns
-        colnames(alert.log) <- c("Date.Sent", "To", "From",
-                                 "Body", "Status", "Direction",
-                                 "Error.Code", "Error.Message")
+        alert.log$To <- message.log$to
+        alert.log$From <- message.log$from
+        alert.log$Body <- message.log$body
+        alert.log$Status <- message.log$status
         
-        # convert columns in alert.log to character (columns were lists before)
-        for (i in 1 : ncol(alert.log)) {
-          alert.log[, i] <- as.character(alert.log[, i])
+        if (is.null(message.log$error_code)) {
+          alert.log$Error.Code <- NA
+          alert.log$Error.Message <- NA
+          
+        } else {
+          
+          alert.log$Error.Code <- message.log$error_code
+          alert.log$Error.Message <- message.log$error_message
+        
         }
-        
-        # formatting date
-        alert.log$Date.Sent <- format(as.POSIXct(substr(alert.log$Date.Sent, 6, 25), 
-                                                 format = "%d %b %Y %H:%M:%S", 
-                                                 tz = "UTC"), 
-                                      format = "%m/%d/%Y %H:%M:%S")
         
         # append new message information to alert.log.csv
         cat("\n", file = 'air.alerts/alert.log.csv', append = TRUE)
-        xlsx::write.xlsx(alert.log,
-                         sheetName = "alert.log",
-                         file = "air.alerts/alertlog.xlsx",
-                         col.names = F,
-                         row.names = F,
-                         append = T)
+        write.table(alert.log,
+                    sep = ",",
+                    file = "air.alerts/alert.log.csv",
+                    col.names = F,
+                    row.names = F,
+                    append = T)
         
         print("Text alert sent. Log updated.")
         
@@ -139,39 +142,5 @@ text.alert <- function(filename) {
 }
 
 text.alert(filename = "air.alerts/CDFPM10.csv")
-
-
-# ==============================================================================
-# NEED TO FIX:
-
-# alert.log dates are in UTC time zone 
-# check if work desk top is utc tz 
-# will have problems with comparing UTC time with Sys.time() in 3rd if statement??
-
-# write.table saves dates weirdly !!!
-# 4/23/18 or 04/27/2018 
-# sometimes it saves the seconds - causes issues for IF statement 3 
-# opening the csv file on mac changes the date values--?? 
-
-# write.xlsx creates another worksheet
-# maybe save everything as a text file
-# ==============================================================================
-
-
-
-subs <- xlsx::read.xlsx(file = "/Users/lisaoshita/Desktop/AQS_R/air.alerts/alertlog.xlsx",
-                        sheetName = "alert.log",
-                        header = TRUE)
-
-
-
-
-
-
-
-
-
-
-
 
 

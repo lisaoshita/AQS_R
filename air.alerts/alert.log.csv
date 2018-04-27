@@ -1,9 +1,11 @@
-Date.Sent,To,From,Body,Status,Direction,Error.Code,Error.Message
-4/23/18 22:49,19169499719,19168238560,Sent from your Twilio trial account - TEXT ALLLERRRT,sent,outbound-api,NULL,NULL
-4/23/18 23:09,19169499719,19168238560,Sent from your Twilio trial account - TEXT ALLLERRRT,sent,outbound-api,NULL,NULL
-4/23/18 23:10,19169499719,19168238560,Sent from your Twilio trial account - new text,sent,outbound-api,NULL,NULL
-4/23/18 23:13,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
-4/23/18 23:35,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,delivered,outbound-api,NULL,NULL
-4/23/18 23:55,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
-4/25/18 0:27,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
+"Date.Sent","To","From","Body","Status","Error.Code","Error.Message"
 
+2018-04-26 10:00:59,"+19169499719","+19168238560","Sent from your Twilio trial account - new text!!!!!","delivered",NA,NA
+
+2018-04-26 10:02:35,"+19169499719","+19168238560","Sent from your Twilio trial account - new text!!!!!","delivered",NA,NA
+
+2018-04-26 10:04:36,"+19169499719","+19168238560","Sent from your Twilio trial account - new text!!!!!","delivered",NA,NA
+
+2018-04-27 10:05:21,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust 
+                                detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, 
+                                to monitor the hourly AQI.","delivered",NA,NA
