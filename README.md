@@ -1,4 +1,4 @@
-# AQS_R
+# Air Pollution Control District - R
 
 This repo contains the R scripts for:
 
