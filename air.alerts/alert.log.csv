@@ -1,8 +1,9 @@
 Date.Sent,To,From,Body,Status,Direction,Error.Code,Error.Message
-4/23/2018 22:49,19169499719,19168238560,Sent from your Twilio trial account - TEXT ALLLERRRT,sent,outbound-api,NULL,NULL
-4/23/2018 23:09,19169499719,19168238560,Sent from your Twilio trial account - TEXT ALLLERRRT,sent,outbound-api,NULL,NULL
-4/23/2018 23:10,19169499719,19168238560,Sent from your Twilio trial account - new text,sent,outbound-api,NULL,NULL
-4/23/2018 23:13,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
-4/23/2018 23:35,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,delivered,outbound-api,NULL,NULL
-4/23/2018 23:55,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
-"04/25/2018 00:27:23","+19169499719","+19168238560","Sent from your Twilio trial account - new text!!!!!","sent","outbound-api","NULL","NULL"
+4/23/18 22:49,19169499719,19168238560,Sent from your Twilio trial account - TEXT ALLLERRRT,sent,outbound-api,NULL,NULL
+4/23/18 23:09,19169499719,19168238560,Sent from your Twilio trial account - TEXT ALLLERRRT,sent,outbound-api,NULL,NULL
+4/23/18 23:10,19169499719,19168238560,Sent from your Twilio trial account - new text,sent,outbound-api,NULL,NULL
+4/23/18 23:13,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
+4/23/18 23:35,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,delivered,outbound-api,NULL,NULL
+4/23/18 23:55,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
+4/25/18 0:27,19169499719,19168238560,Sent from your Twilio trial account - new text!!!!!,sent,outbound-api,NULL,NULL
+
