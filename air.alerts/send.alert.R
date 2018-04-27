@@ -87,11 +87,11 @@ text.alert <- function(filename) {
                                 Error.Message = NA)
         
         # send SMS message ---------------------------------------
-        Sys.setenv(TWILIO_SID = "ACa471eea1d61917cce7d77ac2c1637889")
-        Sys.setenv(TWILIO_TOKEN = "a31cfe18cbdff3a5297d4dd9df941042")
+        Sys.setenv(TWILIO_SID = "x")
+        Sys.setenv(TWILIO_TOKEN = "x")
         
-        tw_send_message(to = "9169499719", 
-                        from = "9168238560", 
+        tw_send_message(to = "x", 
+                        from = "x", 
                         body = "(EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.")
         
         # update alert.log ---------------------------------------
