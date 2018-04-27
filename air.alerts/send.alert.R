@@ -40,11 +40,9 @@ file$pm10[12] <- 44
 #         - if false: runs third if statement
 #   - third if statement:
 #         - uploads the log of messages sent
-#         - checks if any of the dates in the log are equal to the present date (change this?)
+#         - checks if any of the dates in the log are equal to the present date
 #         - if false: send SMS message
 #         - if true: print "Text already sent today. No text alert sent." 
-# NOTE: SID, Token, and to and from numbers deleted from file
-# all times saved in UTC timezone format
 
 
 text.alert <- function(filename) {
