@@ -43,6 +43,8 @@ file$pm10[12] <- 44
 #         - checks if any of the dates in the log are equal to the present date
 #         - if false: send SMS message
 #         - if true: print "Text already sent today. No text alert sent." 
+# 
+# note: cdf value in file renamed to pm10 
 
 
 text.alert <- function(filename) {
