@@ -66,11 +66,11 @@ text.alert <- function(filename) {
     
     } else if (time > 8) {
       
-      log <- read.csv("air.alerts/alert.log.csv",
-                      header = T,
-                      stringsAsFactors = F)
+      log <- xlsx::read.xlsx(file = "/Users/lisaoshita/Desktop/AQS_R/air.alerts/alertlog.xlsx",
+                             sheetName = "alert.log",
+                             header = TRUE)
       
-      dates <- as.Date(substr(log$Date.Sent, 1, 10), format = "%m/%d/%Y")
+      dates <- as.Date(substr(log$Date.Sent, 1, 10), format = "%Y-%m-%d")
       
       # 3rd IF statement -----------
       if (sum(dates == Sys.Date()) > 0) {
@@ -114,12 +114,12 @@ text.alert <- function(filename) {
         
         # append new message information to alert.log.csv
         cat("\n", file = 'air.alerts/alert.log.csv', append = TRUE)
-        write.table(alert.log,
-                    file = "air.alerts/alert.log.csv",
-                    sep = ",",
-                    col.names = F,
-                    row.names = F,
-                    append = T)
+        xlsx::write.xlsx(alert.log,
+                         sheetName = "alert.log",
+                         file = "air.alerts/alertlog.xlsx",
+                         col.names = F,
+                         row.names = F,
+                         append = T)
         
         print("Text alert sent. Log updated.")
         
@@ -152,10 +152,16 @@ text.alert(filename = "air.alerts/CDFPM10.csv")
 # 4/23/18 or 04/27/2018 
 # sometimes it saves the seconds - causes issues for IF statement 3 
 # opening the csv file on mac changes the date values--?? 
+
+# write.xlsx creates another worksheet
+# maybe save everything as a text file
 # ==============================================================================
 
 
 
+subs <- xlsx::read.xlsx(file = "/Users/lisaoshita/Desktop/AQS_R/air.alerts/alertlog.xlsx",
+                        sheetName = "alert.log",
+                        header = TRUE)
 
 
 
