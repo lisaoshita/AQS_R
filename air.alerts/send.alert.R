@@ -113,6 +113,7 @@ text.alert <- function(filename) {
                                       format = "%m/%d/%Y %H:%M:%S")
         
         # append new message information to alert.log.csv
+        cat("\n", file = 'air.alerts/alert.log.csv', append = TRUE)
         write.table(alert.log,
                     file = "air.alerts/alert.log.csv",
                     sep = ",",
@@ -144,13 +145,14 @@ text.alert(filename = "air.alerts/CDFPM10.csv")
 # NEED TO FIX:
 
 # alert.log dates are in UTC time zone 
-# UTC is ahead of LA time 
-# will have problems with comparing UTC time with Sys.time() in 3rd if statement
+# check if work desk top is utc tz 
+# will have problems with comparing UTC time with Sys.time() in 3rd if statement??
+
+# write.table saves dates weirdly !!!
+# 4/23/18 or 04/27/2018 
+# sometimes it saves the seconds - causes issues for IF statement 3 
+# opening the csv file on mac changes the date values--?? 
 # ==============================================================================
-
-
-
-
 
 
 
