@@ -16,6 +16,7 @@ library(xlsx)
 
 
 
+
 get_numbers <- function(filename) {
   
   # load file with subscribers
@@ -29,13 +30,36 @@ get_numbers <- function(filename) {
   file$DUST <- stringr::str_to_lower(file$DUST)
   file$DUST <- stringr::str_trim(file$DUST, side = "both")
   
-  numbers <- as.character(file$PHONE[file$DUST == "yes"])
+  nums <- as.character(file$PHONE[file$DUST == "yes"])
   
-  return(numbers)
+  nums <- nums[nchar(nums) >= 10]
   
+  nums[nchar(nums) < 11] <- paste("1", 
+                                  nums[nchar(nums) < 11], 
+                                  sep = "")
+  
+  front <- "{\"binding_type\":"
+  nums <- paste("'+", trimws(nums, which = "both"), "'", sep = "")
+  end <- "}'"
+  
+  numsdf <- data.frame(Numbers = paste(front, nums, end, sep = ""))
+  
+  write.table(numsdf, 
+              file = "H:/TECH/Lisa/R/numbers.csv",
+              sep = ",",
+              col.names = T,
+              row.name = F)
 }
 
 
-phone_nums <- get_numbers(filename = "H:/TECH/Lisa/R/subscriber.list6.15.17.xlsx")
+
+
+# change the way puts the string together
+# save this to a csv
+# run the python file from r function
+#   python function will upload csv
+
+
+get_numbers(filename = "H:/TECH/Lisa/R/subscriber.list6.15.17.xlsx")
 
 
