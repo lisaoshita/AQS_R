@@ -87,12 +87,9 @@ text.alert <- function(filename) {
                                 Error.Message = NA)
         
         # send SMS message ---------------------------------------
-        Sys.setenv(TWILIO_SID = "x")
-        Sys.setenv(TWILIO_TOKEN = "x")
         
-        tw_send_message(to = "x", 
-                        from = "x", 
-                        body = "(EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.")
+        # run python script 
+        system2(command = "python", args = "C:/Users/loshita/Desktop/test_notification.py")
         
         # update alert.log ---------------------------------------
         alert.log$Date.Sent <- Sys.time()
@@ -138,9 +135,50 @@ text.alert <- function(filename) {
     print("PM10 levels below 175")
     
   }
-  
 }
 
 text.alert(filename = "air.alerts/CDFPM10.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# REMOVED THIS FROM FUNCT
+# Sys.setenv(TWILIO_SID = "ACa471eea1d61917cce7d77ac2c1637889")
+# Sys.setenv(TWILIO_TOKEN = "a31cfe18cbdff3a5297d4dd9df941042")
+# 
+# tw_send_message(to = c("9169499719"), 
+#                 from = "9168238560", 
+#                 body = "(EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
