@@ -19,7 +19,6 @@ def send_alerts():
     # create addresses + convert to list
     full = "{\"binding_type\":\"sms\",\"address\":\"+1" + nums + "\"}"
     full = full.tolist()
-    print(full)
 
     # send SMS
     account = "ACa471eea1d61917cce7d77ac2c1637889"
@@ -41,3 +40,7 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# ADD to send_alerts
+# remove phone numbers if have less than 10 characters
+# if number of characters is less than 11, add a 1

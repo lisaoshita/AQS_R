@@ -16,8 +16,8 @@
       <file leaf-file-name="alert.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/alert.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="285">
-              <caret line="19" column="70" selection-start-line="19" selection-start-column="70" selection-end-line="19" selection-end-column="70" />
+            <state relative-caret-position="237">
+              <caret line="32" lean-forward="true" selection-start-line="32" selection-end-line="32" />
               <folding>
                 <element signature="e#0#30#0" expanded="true" />
               </folding>
@@ -173,8 +173,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/alert.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="285">
-          <caret line="19" column="70" selection-start-line="19" selection-start-column="70" selection-end-line="19" selection-end-column="70" />
+        <state relative-caret-position="237">
+          <caret line="32" lean-forward="true" selection-start-line="32" selection-end-line="32" />
           <folding>
             <element signature="e#0#30#0" expanded="true" />
           </folding>
