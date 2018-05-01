@@ -12,13 +12,12 @@ def send_alerts():
                          dtype = {'PHONE': str, 'DUST': str})
 
     # remove white spaces + convert to lower case
-    numsdf['DUST'] = numsdf['DUST'].str.strip()
-    numsdf['DUST'] = numsdf['DUST'].str.lower()
+    numsdf['DUST'] = numsdf['DUST'].str.strip().str.lower()
 
     # keep phone numbers that subscribed and have entered complete numbers
     nums = numsdf.PHONE[(numsdf["DUST"] == "yes") & (numsdf['PHONE'].str.len() >= 10)]
 
-    # add leading 1 to phone numbers
+    # add leading 1 to phone numbers without it
     nums[nums.str.len() < 11] = "1" + nums
 
     # create addresses + convert to list
