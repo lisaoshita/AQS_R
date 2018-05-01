@@ -26,12 +26,12 @@ def send_alerts():
     full = full.tolist()
     print(full)
 
-    send SMS
-    account = "ACa471eea1d61917cce7d77ac2c1637889"
-    token = "a31cfe18cbdff3a5297d4dd9df941042"
+    # send SMS
+    account = "####"
+    token = "####"
     client = Client(account, token)
 
-    notification = client.notify.services("MG412dd9d44556e2f580cee4b2b79aff52") \
+    notification = client.notify.services("####") \
      .notifications.create(
         to_binding=full,
         body='(EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW '
