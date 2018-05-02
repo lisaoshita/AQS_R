@@ -68,8 +68,8 @@ text.alert <- function(filename) {
   # update alert.log ---------------------------------------
   alert.log$Date.Sent <- Sys.time()
   
-  Sys.setenv(TWILIO_SID = "ACa471eea1d61917cce7d77ac2c1637889")
-  Sys.setenv(TWILIO_TOKEN = "a31cfe18cbdff3a5297d4dd9df941042")
+  Sys.setenv(TWILIO_SID = "x")
+  Sys.setenv(TWILIO_TOKEN = "x")
 
   message.log <- twilio::tw_get_messages_list()[[1]] # list of messages (1 = most recent text)
 
