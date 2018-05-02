@@ -6,6 +6,8 @@
 library(rJava)
 library(xlsx)
 
+# DON'T NEED THIS SCRIPT - PYTHON SCRIPT DOES THIS ALL
+
 
 # ---------------------------------------------------
 # Function to load excel file with subscriber numbers
