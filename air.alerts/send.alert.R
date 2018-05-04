@@ -111,18 +111,6 @@ text.alert(filename = "air.alerts/CDFPM10.csv")
 
 # tw_get_message_list just retrieves the single last sent message 
 #     (not the entire set of mass sms)
+# if the latest text is an incoming message, function will return that
 # what information should be included in the message log? 
-
-
-
-
-
-
-
-
-
-
-
-
-
 
