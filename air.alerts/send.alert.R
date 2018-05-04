@@ -19,10 +19,10 @@ file <- read.csv(file = "air.alerts/CDFPM10.csv", header = TRUE, stringsAsFactor
 file$Date <- as.POSIXct(file$Date, format = "%m/%d/%y %H:%M", tz = "UTC")
 
 
-
 # =============================
 # Function to send text alerts
 # =============================
+
 
 # function takes filename as a character string
 # note: cdf value in file renamed to pm10 
@@ -31,23 +31,29 @@ file$Date <- as.POSIXct(file$Date, format = "%m/%d/%y %H:%M", tz = "UTC")
 text.alert <- function(filename) {
   
   # load and format file of pm10 values
-  file <- read.csv(file = filename, header = TRUE, stringsAsFactors = FALSE)
+  file <- read.csv(file = filename,
+                   header = TRUE, 
+                   colClasses = c("character", "integer"))
+  
   file$Date <- as.POSIXct(file$Date, format = "%m/%d/%y %H:%M", tz = "UTC") 
   
   file$pm10[file$pm10 >= 800] <- NA
   
   # stop and return message if all pm10 < 175
-  if (sum(file$pm10 < 175, na.rm = T) == sum(!is.na(file$pm10))) return("Pm10 values below 175")
+  if (sum(file$pm10 < 175, na.rm = T) == sum(!is.na(file$pm10))) return("No text sent")
   
   # set pm10 to NA if pm10 > 175 and time < 8:00
   time.threshold <- as.POSIXct(paste(substr(file$Date[1], 1, 10), "08:00:00"), tz = "UTC") 
   file$pm10[which((file$Date <= time.threshold) & (file$pm10 > 175))] <- NA
   
   # check pm10 values again 
-  if (sum(file$pm10 < 175, na.rm = T) == sum(!is.na(file$pm10))) return("Pm10 values below 175")
+  if (sum(file$pm10 < 175, na.rm = T) == sum(!is.na(file$pm10))) return("No text sent")
 
   # check logs 
-  log <- read.csv(file = "air.alerts/alert.log.csv", header = TRUE)
+  log <- read.csv(file = "air.alerts/alert.log.csv", 
+                  header = TRUE,
+                  colClasses = rep("character", 7))
+  
   dates <- as.Date(substr(log$Date.Sent, 1, 10), format = "%Y-%m-%d")
 
   # if date in log == present date, stop 
@@ -64,12 +70,12 @@ text.alert <- function(filename) {
   
   # run python script from batch file
   shell.exec("H:/TECH/Lisa/R/apcd.r/air.alerts/runscript.bat")
-  
+
   # update alert.log ---------------------------------------
   alert.log$Date.Sent <- Sys.time()
-  
-  Sys.setenv(TWILIO_SID = "x")
-  Sys.setenv(TWILIO_TOKEN = "x")
+
+  Sys.setenv(TWILIO_SID = "xx")
+  Sys.setenv(TWILIO_TOKEN = "xx")
 
   message.log <- twilio::tw_get_messages_list()[[1]] # list of messages (1 = most recent text)
 
@@ -103,11 +109,9 @@ text.alert <- function(filename) {
 
 text.alert(filename = "air.alerts/CDFPM10.csv")
 
-
-
-
-
-
+# tw_get_message_list just retrieves the single last sent message 
+#     (not the entire set of mass sms)
+# what information should be included in the message log? 
 
 
 
