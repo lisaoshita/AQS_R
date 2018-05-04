@@ -14,10 +14,10 @@
 library(twilio)
 
 # load data (for testing)
-file <- read.csv(file = "air.alerts/CDFPM10.csv", header = TRUE, stringsAsFactors = FALSE)
+file <- read.csv(file = "air.alerts/pm10_test.csv", header = TRUE, stringsAsFactors = FALSE)
 # convert Date to Posix
 file$Date <- as.POSIXct(file$Date, format = "%m/%d/%y %H:%M", tz = "UTC")
-
+file$Date[1] == Sys.Date()
 
 # =============================
 # Function to send text alerts
@@ -36,6 +36,8 @@ text.alert <- function(filename) {
                    colClasses = c("character", "integer"))
   
   file$Date <- as.POSIXct(file$Date, format = "%m/%d/%y %H:%M", tz = "UTC") 
+  
+  if (as.Date(file$Date[1]) != Sys.Date()) return("Old file")
   
   file$pm10[file$pm10 >= 800] <- NA
   
@@ -69,13 +71,18 @@ text.alert <- function(filename) {
                           Error.Message = NA)
   
   # run python script from batch file
-  shell.exec("H:/TECH/Lisa/R/apcd.r/air.alerts/runscript.bat")
+  writeLines(c("H:",
+               "cd /TECH/Lisa/R/apcd.r/air.alerts",
+               "python alert.py"),
+             con = "air.alerts/774R3UvON5.bat")
+  
+  system2("air.alerts/774R3UvON5.bat")
 
   # update alert.log ---------------------------------------
   alert.log$Date.Sent <- Sys.time()
 
-  Sys.setenv(TWILIO_SID = "xx")
-  Sys.setenv(TWILIO_TOKEN = "xx")
+  Sys.setenv(TWILIO_SID = "x")
+  Sys.setenv(TWILIO_TOKEN = "x")
 
   message.log <- twilio::tw_get_messages_list()[[1]] # list of messages (1 = most recent text)
 
@@ -104,13 +111,31 @@ text.alert <- function(filename) {
               col.names = F,
               row.names = F,
               append = T)
+  
+  unlink("air.alerts/774R3UvON5.bat") # delete batch file
 
 }
 
-text.alert(filename = "air.alerts/CDFPM10.csv")
+text.alert(filename = "air.alerts/pm10_test.csv")
 
-# tw_get_message_list just retrieves the single last sent message 
-#     (not the entire set of mass sms)
-# if the latest text is an incoming message, function will return that
-# what information should be included in the message log? 
+# include in log:
+# date sent
+# when bringing twilio messages back - only bring back parts with date == Sys.Date()? 
+# also make sure it is an "Outgoing API" - not saving any incoming messages 
+# turn into a data frame, count number of error codes and report back 
+# include error codes 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
