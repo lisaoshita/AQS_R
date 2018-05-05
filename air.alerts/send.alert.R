@@ -30,12 +30,15 @@ file$Date[1] == Sys.Date()
 
 text.alert <- function(filename) {
   
-  # load and format file of pm10 values
-  file <- read.csv(file = filename,
-                   header = TRUE, 
-                   colClasses = c("character", "integer"))
-  
-  file$Date <- as.POSIXct(file$Date, format = "%m/%d/%y %H:%M", tz = "UTC") 
+  file <- read.csv(filename, 
+                   header = F,
+                   skip = 3,
+                   col.names = c("Date", "pm10"),
+                   colClasses = c("character", "numeric"))
+
+  file$Date <- as.POSIXct(file$Date, 
+                          format = "%d-%B-%Y %H:%M", 
+                          tz = "UTC")
   
   if (as.Date(file$Date[1]) != Sys.Date()) return("Old file")
   
@@ -54,7 +57,7 @@ text.alert <- function(filename) {
   # check logs 
   log <- read.csv(file = "air.alerts/alert.log.csv", 
                   header = TRUE,
-                  colClasses = rep("character", 7))
+                  colClasses = rep("character", 2))
   
   dates <- as.Date(substr(log$Date.Sent, 1, 10), format = "%Y-%m-%d")
 
@@ -63,12 +66,7 @@ text.alert <- function(filename) {
   
   # intialize empty df for text info
   alert.log <- data.frame(Date.Sent = NA, 
-                          To = NA,
-                          From = NA,
-                          Body = NA,
-                          Status = NA,
-                          Error.Code = NA,
-                          Error.Message = NA)
+                          Body = NA)
   
   # run python script from batch file
   writeLines(c("H:",
@@ -76,32 +74,20 @@ text.alert <- function(filename) {
                "python alert.py"),
              con = "air.alerts/774R3UvON5.bat")
   
-  system2("air.alerts/774R3UvON5.bat")
+  run <- system2("air.alerts/774R3UvON5.bat")
+  
+  # if system2 command returns errors, stop function here
+  if (run != 0) return("Texts failed to send")
 
-  # update alert.log ---------------------------------------
+  # update alert.log
   alert.log$Date.Sent <- Sys.time()
 
-  Sys.setenv(TWILIO_SID = "x")
-  Sys.setenv(TWILIO_TOKEN = "x")
+  Sys.setenv(TWILIO_SID = "xx")
+  Sys.setenv(TWILIO_TOKEN = "xx")
 
   message.log <- twilio::tw_get_messages_list()[[1]] # list of messages (1 = most recent text)
 
-  alert.log$To <- message.log$to
-  alert.log$From <- message.log$from
   alert.log$Body <- message.log$body
-  alert.log$Status <- message.log$status
-
-  if (is.null(message.log$error_code)) {
-
-    alert.log$Error.Code <- NA
-    alert.log$Error.Message <- NA
-
-  } else {
-
-    alert.log$Error.Code <- message.log$error_code
-    alert.log$Error.Message <- message.log$error_message
-
-  }
 
   # append new message information to alert.log.csv
   cat("\n", file = 'air.alerts/alert.log.csv', append = TRUE)
@@ -116,26 +102,5 @@ text.alert <- function(filename) {
 
 }
 
-text.alert(filename = "air.alerts/pm10_test.csv")
-
-# include in log:
-# date sent
-# when bringing twilio messages back - only bring back parts with date == Sys.Date()? 
-# also make sure it is an "Outgoing API" - not saving any incoming messages 
-# turn into a data frame, count number of error codes and report back 
-# include error codes 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+text.alert(filename = "C:/Users/loshita/Desktop/CDFPM10.csv")
 
