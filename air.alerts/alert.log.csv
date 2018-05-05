@@ -1,35 +1,13 @@
-"Date.Sent","To","From","Body","Status","Error.Code","Error.Message"
+"Date.Sent","Body"
 
-2018-04-26 10:00:59,"+19169499719","+19168238560","Sent from your Twilio trial account - new text!!!!!","delivered",NA,NA
+2018-04-26 10:00:59,"Sent from your Twilio trial account - new text!!!!!"
 
-2018-04-26 10:02:35,"+19169499719","+19168238560","Sent from your Twilio trial account - new text!!!!!","delivered",NA,NA
+2018-04-26 10:02:35,"Sent from your Twilio trial account - new text!!!!!"
 
-2018-04-26 10:04:36,"+19169499719","+19168238560","Sent from your Twilio trial account - new text!!!!!","delivered",NA,NA
+2018-05-03 13:25:07,"Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI."
 
-2018-04-26 10:05:21,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust 
-                                detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, 
-                                to monitor the hourly AQI.","delivered",NA,NA
+2018-05-03 13:26:22,"Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI."
 
-2018-04-26 11:48:26,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","sent",NA,NA
+2018-05-03 14:13:07,"Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI."
 
-2018-04-26 11:50:20,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-04-26 13:50:49,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-04-26 13:52:23,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-04-26 13:53:24,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","sent",NA,NA
-
-2018-04-27 14:09:29,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-04-29 17:45:24,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-05-01 17:51:21,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-05-03 09:30:15,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-05-03 09:33:39,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-05-03 09:39:19,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","delivered",NA,NA
-
-2018-05-04 10:44:01,"+19169499719","+19168238560","Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI.","queued",NA,NA
+2018-05-03 14:20:05,"Sent from your Twilio trial account - (EARLY AIRAWARE ALERT) Blowing dust detected on the Nipomo Mesa. Visit AIRNOW <http://bit.ly/NipomoAQI>, to monitor the hourly AQI."
