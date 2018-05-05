@@ -22,10 +22,9 @@ import pandas as pd
 def main():
 
     # load data as pandas data frame
-    numsdf = pd.read_csv("/Users/lisaoshita/Desktop/phone_numbers.csv", 
-                         sep = ",",
-                         encoding = "ISO-8859-1",
-                         usecols = ['PHONE', 'DUST'],
+    numsdf = pd.read_csv("H:/TECH/Lisa/R/test_subscribers.csv", 
+                         encoding = "ISO-8859-1", 
+                         usecols = ['PHONE', 'DUST'], 
                          dtype = {'PHONE': 'str', 'DUST': 'str'})
 
     # remove white spaces + convert to lower case
