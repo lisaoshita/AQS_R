@@ -1,0 +1,31 @@
+---
+title: "Documentation for text alert scripts"
+author: "Lisa Oshita"
+date: "May 4, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Requirements for alert.py
+
+The latest version of python needs to be installed. Instructions for python installation:
+
+1. Download python [here](https://www.python.org/downloads/)
+2. On the first screen of the python installer, the option "Add Python 3.6 to PATH" must be enabled
+3. Click "Install Now"
+
+Python packages, twilio and pandas, also need to be installed. Instructions for package installations:
+
+1. Open the command prompt
+2. Type "pip install twilio"
+3. Type "pip install pandas"
+
+The file containing the subscriber phone numbers must be in CSV format. 
+
+# Description of how scripts function
+
+The main function of send.alert.R that will be run is text.alert(). text.alert() takes the name of the file that contains pm10 values as a character string argument. After reading in the file, the function formats it and checks if the dates in the file are equal to the current date. If not, the function stops and returns the message, "Old file". If the dates are current, then the function sets all pm10 values that are greater than 800 to NA. It then checks if all pm10 values are less than 175. If true, the function stops and returns the message, "No text sent". If false, the function sets any pm10 values that are greater than 175 and that occurred before 8:00am, to NA. The function checks again if all values of pm10 are less than 175. If true, the function stops and returns, "No text sent". If false, the function reads in the log of text messages sent, and if a text was already sent that day, the function stops and returns, "Text already sent today". If not, the function initializes an empty data frame that will be used later on to store message information. A
+
