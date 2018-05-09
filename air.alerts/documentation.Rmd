@@ -33,9 +33,9 @@ The file containing the subscriber phone numbers must be in CSV format.
 * The function checks if the dates in the file are equal to the current date. If not, the function stops.
 * If the dates are current, the function sets all pm10 values that are greater than 800 to NA.
 * It also sets any pm10 values that are greater than 175, that also occurred before 8:00am, to NA.
-* Then the function checks if all values of pm10 are less than 175. If true, the function stops. 
+* The function then checks if all values of pm10 are less than 175. If true, the function stops. 
 * If not (there are pm10 values greater than 175), the function reads in alert.log.csv, the log of text messages sent. 
-* The function stops if a text had already been sent.  
+* The function stops if a text had already been sent that day.  
 * If a text was not sent earlier in the day, the function intializes an empty data frame that will be used later on to store text information. 
 * The function then creates a batch file called 774R3UvON5.bat, that calls and executes alert.py. This batch file is ran with the system2 function. The output of this call is saved to the variable "run". Output will be a 0 if alert.py executed without error, or a 1 if there was an error. If there was an error, texts were not successfully sent out (see below for some reasons why alert.py might have executed in an error).
 * The function stops if run is equal to 1. 
@@ -47,15 +47,14 @@ The file containing the subscriber phone numbers must be in CSV format.
 # How alert.py works: 
 
 * The script imports the twilio and pandas libraries.
-* The function, main(), reads in the csv of subscriber phone numbers. Only the columns PHONE and DUST will be read in. The dtype argument of this function specifies that columns will be read in as character strings (str). 
+* The function, main(), reads in the csv file of subscriber phone numbers. Only PHONE and DUST columns will be read in. The dtype argument of this function specifies that columns will be read in as character strings (str). 
 * All white spaces are removed and all text is converted to lower case in the DUST column.
 * The function then saves all phone numbers that are complete (have at least 10 digits) and have also indicated "yes" in the DUST column. 
 * Leading ones are added to the phone numbers that don't have a leading one (numbers with less than 11 digits).
-* All phone numbers are then concatenated to the rest of the address string. 
-* The full string of addresses are then converted to a list called "full". 
+* All phone numbers are then concatenated to the rest of the address string, and then converted into a list called "full".
 * The function then sends the SMS messages using that list. 
 
-The code snippet at the very bottom of the python script just streamlines the process of calling this python script. Specifically, if alert.py is called, the main function is automatically ran (no need to call main() within alert.py). 
+The code snippet at the very bottom of the python script just streamlines the process of calling this script. Specifically, if alert.py is called, the main function is automatically ran (no need to call main() within alert.py). 
 
 
 
