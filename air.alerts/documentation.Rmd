@@ -17,14 +17,12 @@ The latest version of python needs to be installed.
 2. On the first screen of the python installer, the option "Add Python 3.6 to PATH" must be enabled
 3. Click "Install Now"
 
-Python packages, twilio and pandas, also need to be installed.
+Python packages, twilio, pandas and xlrd also need to be installed.
 
 1. Open the command prompt
 2. Type "pip install twilio"
 3. Type "pip install pandas"
-
-The file containing the subscriber phone numbers must be in CSV format.
-
+4. Type "pip install xlrd"
 
 
 # How text.alert() works:
@@ -47,14 +45,15 @@ The file containing the subscriber phone numbers must be in CSV format.
 # How alert.py works: 
 
 * The script imports the twilio and pandas libraries.
-* The function, main(), reads in the csv file of subscriber phone numbers. Only PHONE and DUST columns will be read in. The dtype argument of this function specifies that columns will be read in as character strings (str). 
-* All white spaces are removed and all text is converted to lower case in the DUST column.
-* The function then saves all phone numbers that are complete (have at least 10 digits) and have also indicated "yes" in the DUST column. 
-* Leading ones are added to the phone numbers that don't have a leading one (numbers with less than 11 digits).
-* All phone numbers are then concatenated to the rest of the address string, and then converted into a list called "full".
+* The function, main(), reads in an excel file of subscriber phone numbers. Only PHONE and DUST columns, corresponding to columns A and C in the file, will be read in. The dtype argument of this function specifies that columns will be read in as character strings (str). 
+* Function performs a series of string manipulation techniques to put together the addresses texts will send to:
+    + All white spaces are removed and all text is converted to lower case in the DUST column.
+    + The function then saves all phone numbers that are complete (have at least 10 digits) and have also indicated "yes" in the DUST column. 
+    + Leading ones are added to the phone numbers that don't have a leading one (numbers with less than 11 digits).
+    + All phone numbers are then concatenated to the rest of the address string, and then converted into a list called "full".
 * The function then sends the SMS messages using that list. 
 
-The code snippet at the very bottom of the python script just streamlines the process of calling this script. Specifically, if alert.py is called, the main function is automatically ran (no need to call main() within alert.py). 
+The code snippet at the very bottom of the python script just streamlines the process of calling this script. Specifically, if alert.py is called, the main function is automatically ran (no need to call main() within alert.py).
 
 
 
