@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Overview
 
-The R script, send.alert.R, works in conjuction with the python script, alert.py, to send Early AirAware text alerts to subscribers. send.alert.R performs a series of checks on the file containing pm10 values before running alert.py. The main function of alert.py is to send mass SMS texts to all subscribers using the Twilio Notify API. The following describes how each script functions. 
+The R script, send.alert.R, works in conjunction with the python script, alert.py, to send Early AirAware text alerts to subscribers. send.alert.R performs a series of checks on the file containing pm10 values before running alert.py. The main function of alert.py is to send mass SMS texts to all subscribers using the Twilio Notify API. The following describes how each script functions. 
 
 
 # Requirements for alert.py
@@ -36,28 +36,28 @@ Twilio credentials---Account SID, Auth Token, and Service Instance SID---must be
 
 * The function (within send.alert.R) takes the name of the pm10 excel file as a character string argument.
 * Function performs a series of checks:
-    + Checks if the dates in the file are equal to the current date. If not, the function stops.
-    + If the dates are current, the function sets all pm10 values greater than 800 to NA.
+    + Checks if dates in the file are equal to the current date. If not, the function stops.
+    + If dates are current, the function sets all pm10 values greater than 800 to NA.
     + Sets any pm10 values greater than 175, that also occurred before 8:00am, to NA.
     + Checks if all values of pm10 are less than 175. If true, the function stops. 
     + If there are pm10 values greater than 175, the function reads in alert.log.csv, the log of text messages sent.
-    + Checks if a text has already been sent that day, stops if true. 
-    + If a text was not sent earlier in the day, function intializes an empty data frame to store text information.
+    + Checks if texts have already been sent that day, stops if true. 
+    + If texts were not sent earlier in the day, function initializes an empty data frame to store text information.
 * Function sends the texts: 
-    + Executes alert.py with the system2 function. The output from the system2 call is saved to the variable "run". Output will be a 0 if alert.py executed successfully, or a 1 if there was an error. If there was an error, texts were not sent out (check if Twilio credentials in the alert.py file are correct).
+    + Executes alert.py with the system2() function. The output from the system2() call is saved to the variable "run". Output will be a 0 if alert.py executed successfully, or a 1 if there was an error. If there was an error, texts were not sent out (check if Twilio credentials in alert.py are correct).
     + Checks if run is equal to 1. If true, the function stops. 
-    + If texts were successfully sent out, the message log will be updated with the current date time and the string "Texts Sent!". This message log is saved in alert.log.csv. 
+    + If texts were successfully sent out (run is equal to 0), the message log will be updated with the current date time and the string "Texts Sent!". This information is appended to alert.log.csv. 
 
 
 # How alert.py works: 
 
 * The script imports the twilio and pandas libraries.
-* The function, main(), reads in an excel file of subscriber phone numbers. Only PHONE and DUST columns, corresponding to columns A and C in the file, will be read in. The dtype argument of this function specifies that columns will be read in as character strings (str). 
+* The function, main(), reads in an excel file of subscriber phone numbers. Only PHONE and DUST columns, corresponding to columns A and C in the file, will be read in. The dtype argument specifies that columns will be read in as character strings (str). 
 * Function performs a series of string manipulation techniques to create text addresses:
     + All white spaces are removed and all text is converted to lower case in the DUST column.
-    + Function saves all complete phone numbers (have at least 10 digits), and have also indicated "yes" in the DUST column. 
+    + Function saves all complete phone numbers subscribed to AirAware alerts (have at least 10 digits and have indicated "yes" in the DUST column). 
     + Leading ones are added to phone numbers that don't have a leading one (numbers with less than 11 digits).
-    + All phone numbers are concatenated to the rest of the address string and converted into a list called "full".
+    + All phone numbers are concatenated to the rest of the address string and converted to a list called "full".
     + The function then sends the SMS messages using that list. 
 
 The code snippet at the very bottom of the python script just streamlines the process of calling this script. Specifically, if alert.py is called, the main function is automatically ran (no need to call main() within alert.py).
