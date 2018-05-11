@@ -29,7 +29,7 @@ Python packages, twilio, pandas and xlrd also need to be installed.
 3. Type "pip install pandas"
 4. Type "pip install xlrd"
 
-Twilio credentials: Account SID, Auth Token, and Service Instance SID must be valid for texts to send out. 
+Twilio credentials---Account SID, Auth Token, and Service Instance SID---must be valid for texts to send out. 
 
 
 # How text.alert() works:
