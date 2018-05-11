@@ -16,7 +16,6 @@
 
 
 # function takes filename as a character string
-# note: cdf value in file renamed to pm10 
 # options(show.error.messages = FALSE)
 # options(warn = -1) 
 
