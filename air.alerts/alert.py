@@ -22,10 +22,10 @@ import pandas as pd
 def main():
 
     # load data as pandas data frame
-    numsdf = pd.read_csv("H:/TECH/Lisa/R/test_subscribers.csv", 
-                         encoding = "ISO-8859-1", 
-                         usecols = ['PHONE', 'DUST'], 
-                         dtype = {'PHONE': 'str', 'DUST': 'str'})
+    numsdf = pd.read_excel(io = "C:/Users/loshita/Desktop/test_numbers.xlsx", 
+	                 sheet_name = "Sortable CURRENT",
+	                 usecols = 'A,C',
+	                 dtype = {'PHONE': 'str', 'DUST': 'str'})
 
     # remove white spaces + convert to lower case
     numsdf['DUST'] = numsdf['DUST'].str.replace(" ", "").str.lower()
