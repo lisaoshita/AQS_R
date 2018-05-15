@@ -10,8 +10,12 @@ token = "xx"
 client = Client(account, token)
 
 # this method only allows you to grab messages for a single date
-# use a loop to iterate over each day, save messages in a list? 
-# twilio dates are in UTC tz 
+# use a loop to iterate over each day, save messages in a list? - condense list to pandas data frame?
+# twilio dates are in UTC tz
+# subset data to include only failed messages (for now) 
+# if there are actually numbers, send an email
+
+
 # messages = client.messages.list(
 #                                # "date_sent" <= date(2018, 5, 11),
 #                                start_date = date(2018, 4, 27),
