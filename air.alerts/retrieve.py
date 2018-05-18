@@ -14,18 +14,15 @@ from email.mime.text import MIMEText
 
 def main(): 
 
-  # previous day's date
-  prev = datetime.date.today() - datetime.timedelta(1)
-
   account = "xx"
   token = "xx"
   client = Client(account, token)
 
   # retrieve all messages sent and received on the previous date
   messages = client.messages.list(
-                                 date_sent = prev # datetime.date(2018, 4, 27), (4/24 for no incoming/failed)
+                                 date_sent = datetime.date.today() # prev # datetime.date(2018, 4, 27), (4/24 for no incoming/failed)
                              )
-
+  
   # formatting the messages
   msglist = []
   for msg in messages:
@@ -44,7 +41,7 @@ def main():
   
   else: # send email 
     
-    fromaddr = "xx" # calpoly email
+    fromaddr = "xx"
     toaddr = "xx"
     password = "xx"
     
@@ -70,8 +67,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
