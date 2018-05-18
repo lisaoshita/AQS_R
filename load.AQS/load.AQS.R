@@ -3,7 +3,7 @@
 # =========================================================================== 
 
 
-original <- read.table("AMP501_1595753-0.txt", sep = "|", header = TRUE,
+original <- read.table("load.AQS/AMP501_1595753-0.txt", sep = "|", header = TRUE,
                        colClasses = c(rep("character", 12), "numeric", 
                                       rep("character", 13)))
 
@@ -17,7 +17,6 @@ library(reshape2) # used in read.aqs for level = 4
 
 read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   
-  # -----------------------------------------------------------
   # ========
   # LEVEL 0
   # ========
@@ -30,7 +29,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   
   if (level == 0) return(data)
   
-  # -----------------------------------------------------------
   # ========
   # LEVEL 1
   # ========
@@ -44,7 +42,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   
   if (level == 1) return(data)
   
-  # -----------------------------------------------------------
   # ========
   # LEVEL 2 (default level)
   # ========
@@ -56,17 +53,16 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
                            data$Sample.Duration,
                            data$Unit,
                            data$Method,
-                           sep = "-")
+                           sep = "/")
   
   if (level == 2) {
     
     data <- data[, -c(1:8)]
-    data <- data[c("Monitor.ID", "Date.Time", "Sample.Value")]
+    data <- data[c("Monitor.ID", "Date.Time", "Sample.Value")] # reorders columns
     
     return(data)
   }
   
-  # -----------------------------------------------------------
   # ========
   # LEVEL 3
   # ========
@@ -74,33 +70,33 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
   # WRITE A FUNCT TO CONDENSE THIS SECTION
   
   # load data sets, join with data by shared column 
-  regions <- read.table(file = "monitor.labels/regions.txt",
+  regions <- read.table(file = "load.AQS/monitor.labels/regions.txt",
                         sep = "|",
                         header = TRUE,
                         colClasses = c("character", "character"))
   
-  parameters <- read.table(file = "monitor.labels/parameters.txt", 
+  parameters <- read.table(file = "load.AQS/monitor.labels/parameters.txt", 
                            sep = "|",
                            header = TRUE,
                            colClasses = c("character", "character"))
   
-  durations <- read.table(file = "monitor.labels/durations.txt", 
+  durations <- read.table(file = "load.AQS/monitor.labels/durations.txt", 
                           sep = "|",
                           header = TRUE,
                           colClasses = c("character", "character"))
   
-  units <- read.table(file = "monitor.labels/units.txt",
+  units <- read.table(file = "load.AQS/monitor.labels/units.txt",
                       sep = "|",
                       header = TRUE,
                       colClasses = c("character", "character"))
   
-  methods <- read.table(file = "monitor.labels/methods.txt",
+  methods <- read.table(file = "load.AQS/monitor.labels/methods.txt",
                         sep = "|",
                         header = TRUE,
                         colClasses = c("character", "character"))
   
   # Adding State - County labels 
-  data$code <- paste(data$State.Code, data$County.Code, sep = "-")
+  data$code <- paste(data$State.Code, data$County.Code, sep = "/")
   data <- merge(data, 
                 regions, 
                 by = "code", 
@@ -138,13 +134,12 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
                               data$Duration.Description,
                               data$Unit.Label,
                               data$Method.Label,
-                              sep = "-")
+                              sep = "/")
   
   data <- data[, c("Monitor.Label", "Date.Time", "Sample.Value")]
 
   if (level == 3) return(data)
   
-  # -----------------------------------------------------------
   # ========
   # LEVEL 4
   # ========
@@ -162,7 +157,7 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC") {
 }
 
 
-test <- read.aqs(filename = "AMP501_1595753-0.txt", level = 4)
+test <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 4)
 
 
 
