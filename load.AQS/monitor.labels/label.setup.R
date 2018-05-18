@@ -11,9 +11,13 @@ library(stringr)
 # states_counties file
 # -----------------------------------------------------------
 
-regions <- read.csv("C:/Users/loshita/Desktop/states_and_counties.csv",
+regions <- read.csv("C:/Users/loshita/Desktop/Projects/states_and_counties.csv",
                     header = TRUE,
                     stringsAsFactors = FALSE)
+
+regions$state_code <- as.character(regions$state_code)
+regions$county_code <- as.character(regions$county_code)
+
 # adding leading 0s 
 regions$state_code <- str_pad(regions$state_code,
                               width = 2,
@@ -26,7 +30,7 @@ regions$county_code <- str_pad(regions$county_code,
 # concatenate state and county code
 regions$code <- paste(regions$state_code, 
                       regions$county_code,
-                      sep = "-")
+                      sep = "/")
 
 regions$county_name <- trimws(regions$county_name, which = "both")
 
@@ -35,10 +39,10 @@ regions$county_name <- str_replace_all(regions$county_name,
                                        replacement = "_")
 regions$region <- paste(regions$state_abbr,
                         regions$county_name,
-                        sep = "-")
+                        sep = "/")
 regions <- regions %>% select(code, region)
 
-write.table(regions, "regions.txt", sep = "|", col.names = T, row.names = F)
+write.table(regions, "load.AQS/monitor.labels/regions.txt", sep = "|", col.names = T, row.names = F)
 
 # -----------------------------------------------------------
 # Parameters
