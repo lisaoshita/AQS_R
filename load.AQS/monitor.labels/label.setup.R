@@ -17,56 +17,55 @@ regions <- read.csv("C:/Users/loshita/Desktop/Projects/states_and_counties.csv",
 
 regions$state_code <- as.character(regions$state_code)
 regions$county_code <- as.character(regions$county_code)
+regions$state_abbr <- str_replace_all(regions$state_abbr, pattern = " ", replacement = "")
+regions$county_name <- str_replace_all(regions$county_name, pattern = " ", replacement = "")
 
-# adding leading 0s 
-regions$state_code <- str_pad(regions$state_code,
-                              width = 2,
-                              pad = "0",
-                              side = "left")
-regions$county_code <- str_pad(regions$county_code,
-                               width = 3,
-                               pad = "0",
-                               side = "left")
-# concatenate state and county code
-regions$code <- paste(regions$state_code, 
-                      regions$county_code,
-                      sep = "/")
+State.Code <- regions[, 1:2]
+State.Code$state_code <- str_pad(State.Code$state_code,
+                                 width = 2,
+                                 pad = "0",
+                                 side = "left")
+write.table(State.Code, "load.AQS/monitor.labels/State.Code.txt", sep = "|", col.names = T, row.names = F)
 
-regions$county_name <- trimws(regions$county_name, which = "both")
 
-regions$county_name <- str_replace_all(regions$county_name,
-                                       pattern = " ",
-                                       replacement = "_")
-regions$region <- paste(regions$state_abbr,
-                        regions$county_name,
-                        sep = "/")
-regions <- regions %>% select(code, region)
+County.Code <- regions[, 3:4]
+County.Code$county_code <- str_pad(County.Code$county_code,
+                                   width = 3,
+                                   pad = "0",
+                                   side = "left")
+write.table(County.Code, "load.AQS/monitor.labels/County.Code.txt", sep = "|", col.names = T, row.names = F)
 
-write.table(regions, "load.AQS/monitor.labels/regions.txt", sep = "|", col.names = T, row.names = F)
+
 
 # -----------------------------------------------------------
 # Parameters
 # -----------------------------------------------------------
 
-parameters <- read.csv("H:/TECH/Lisa/R/AQS_R/monitor.labels/parameters.csv",
+methods_criteria <- read.csv("C:/Users/loshita/Desktop/Projects/methods_criteria.csv",
                     header = TRUE,
                     stringsAsFactors = FALSE)
-write.table(parameters, "parameters.txt", sep = "|", col.names = T, row.names = F)
+
+parameters <- methods_criteria %>% select(Parameter.Code, Parameter) %>% distinct()
+
+write.table(parameters, "load.AQS/monitor.labels/Parameter.txt", 
+            sep = "|", 
+            col.names = T,
+            row.names = T)
 
 
 # -----------------------------------------------------------
 # Methods
 # -----------------------------------------------------------
 
-methods <- read.csv("H:/TECH/Lisa/R/AQS_R/monitor.labels/methods.csv",
-                    header = TRUE,
-                    stringsAsFactors = FALSE)
-methods$Method <- str_pad(methods$Method,
+
+methods <- methods_criteria %>% select(Method.Code, Equivalent.Method)
+methods$Method.Code <- as.character(Method.Code)
+methods$Method.Code <- str_pad(methods$Method.Code,
                           width = 3,
                           pad = "0",
                           side = "left")
 
-write.table(methods, "methods.txt", sep = "|", col.names = T, row.names = F)
+write.table(methods, "load.AQS/monitor.labels/Method.txt", sep = "|", col.names = T, row.names = F)
 
 
 
