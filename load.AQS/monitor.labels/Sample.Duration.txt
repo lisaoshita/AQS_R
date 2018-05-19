@@ -1,4 +1,4 @@
-"Sample.Duration"|"Duration.Description"
+"Sample.Duration"|"Duration.Name"
 "1"|"1_hour"
 "2"|"2_hour"
 "3"|"4_hour"
