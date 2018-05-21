@@ -13,10 +13,6 @@ library(reshape2) # used in read.aqs for level = 4
 
 # function will take file name as character string
 
-# ==================
-# read.aqs function
-# ==================
-
 read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   
   # ========
@@ -29,6 +25,8 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
                                     "numeric", 
                                     rep("character", 13)))
   
+  
+  
   # remove columns with all same value if remove = TRUE
   if (remove == TRUE) {
     rcol <- rep(0, ncol(data))
@@ -36,6 +34,7 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
       
       if (length(unique(data[ , i])) == 1) {
         rcol[i] <- 1
+        
       }
     }
     # removes all columns with same values (except date column)
@@ -75,13 +74,13 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   # concatenating monitor labels
   paste.args <- c(data[, -c(which(colnames(data) == "Sample.Value"), 
                             which(colnames(data) == "Date.Time"))], 
-                  sep="/")
+                  sep="|")
   
   data$Monitor.ID <- do.call(paste, paste.args)
   
   if (level == 2) {
     
-    # data <- data[c("Monitor.ID", "Date.Time", "Sample.Value")] # reorders columns
+    data <- data[c("Date.Time", "Monitor.ID", "Sample.Value")] # reorders columns
     
     return(data)
   }
@@ -90,35 +89,32 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   # LEVEL 3
   # ========
   
-  to.upload <- colnames(test2)[!(colnames(test2) %in% c("Site.ID", 
-                                                        "POC", 
-                                                        "Sample.Value", 
-                                                        "Date.Time",
-                                                        "Monitor.ID"))]
+  to.upload <- colnames(data)[!(colnames(data) %in% c("Site.ID", 
+                                                      "POC", 
+                                                      "Sample.Value", 
+                                                      "Date.Time",
+                                                      "Monitor.ID"))]
 
   # load only the data sets needed, join with data by shared column 
   for (i in to.upload) {
-
-    label <- get.labels(i)
-    data <- merge(data,
-                  label,
-                  by = i,
-                  all.x = TRUE)
+    
+    label.file <- get.labels(i)
+    var.name <- paste(i, ".Name", sep = "")
+    
+    data[[i]] <- label.file[match(data[[i]], label.file[[i]]), 2] 
+    
   }
+  
+  # Concatenating 
+  paste.args1 <- c(data[, -c(which(colnames(data) == "Sample.Value"), 
+                            which(colnames(data) == "Date.Time"),
+                            which(colnames(data) == "Monitor.ID"))], 
+                  sep="|")
+  
+  data$Monitor.ID <- do.call(paste, paste.args1)
 
   
-  # 
-  # # Concatenating all columns 
-  # data$Monitor.Label <- paste(data$region, (STATE THEN COUNTY)
-  #                             data$Site.ID,
-  #                             data$parameter.label,
-  #                             data$POC,
-  #                             data$Duration.Description,
-  #                             data$Unit.Label,
-  #                             data$Method.Label,
-  #                             sep = "/")
-  # 
-  # data <- data[, c("Monitor.Label", "Date.Time", "Sample.Value")]
+  data <- data[, c("Date.Time", "Monitor.ID", "Sample.Value")]
 
   if (level == 3) return(data)
     
@@ -126,19 +122,9 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   # LEVEL 4
   # ========
   
-  # Concatenating all columns 
-  data$Monitor.Label <- paste(data$region,
-                              data$Site.ID,
-                              data$parameter.label,
-                              data$POC,
-                              data$Duration.Description,
-                              data$Unit.Label,
-                              data$Method.Label,
-                              sep = "/")
-  
   # Long -> wide format 
-  data <- reshape2::dcast(data[, c("Monitor.Label", "Date.Time", "Sample.Value")], 
-                          Date.Time ~ Monitor.Label, 
+  data <- reshape2::dcast(data, 
+                          Date.Time ~ Monitor.ID, 
                           value.var = "Sample.Value",
                           na.rm = TRUE,
                           fill = 0)
@@ -166,20 +152,25 @@ get.labels <- function(filename) {
 }
 
 
-test2 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 3, remove = TRUE)
+test2 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 4, remove = T)
 
 
 # STILL WORKING ON: 
 
-# REFORMAT: MONITOR LABELS
-# - CHANGE WHITE SPACES IN LABELS TO "-"
-# - CONVERT METHOD LABELS TO ALL LOWERCASE
+
 # CLEAN UP LABEL.SETUP SCRIPT
-# FIND A WAY TO CONCATENATE COLUMNS IN THE RIGHT ORDER!!!!!
+
+# FIX COUNTY AND STATE CODES!!! THEY NEED TO GO TOGETHER!!! 
 
 
 
-  
+
+
+
+
+
+
+
 
 
 
