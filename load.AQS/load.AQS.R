@@ -25,7 +25,7 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
                                     "numeric", 
                                     rep("character", 13)))
   
-  
+  state.code <- data$State.Code # for future use
   
   # remove columns with all same value if remove = TRUE
   if (remove == TRUE) {
@@ -98,11 +98,24 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   # load only the data sets needed, join with data by shared column 
   for (i in to.upload) {
     
-    label.file <- get.labels(i)
-    var.name <- paste(i, ".Name", sep = "")
-    
-    data[[i]] <- label.file[match(data[[i]], label.file[[i]]), 2] 
-    
+    if (i == "County.Code") { 
+      
+      label.file <- get.labels("County")
+      
+      data$County.Code <- paste(state.code, data$County.Code, sep = "/")
+      
+      matches <- match(data$County.Code, label.file$Code)
+      
+      data$County.Code <- label.file$Region[matches]
+      
+    } else {
+        
+      label.file <- get.labels(i)
+      var.name <- paste(i, ".Name", sep = "")
+      
+      data[[i]] <- label.file[match(data[[i]], label.file[[i]]), 2] 
+      
+      }
   }
   
   # Concatenating 
@@ -152,7 +165,7 @@ get.labels <- function(filename) {
 }
 
 
-test2 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 4, remove = T)
+test2 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 2, remove = T)
 
 
 # STILL WORKING ON: 
@@ -162,11 +175,9 @@ test2 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 4, remove 
 
 # FIX COUNTY AND STATE CODES!!! THEY NEED TO GO TOGETHER!!! 
 
-
-
-
-
-
+# clean up state.code file 
+# parameter file has a lot of missing values 
+# set function to report back if it can't find a matching label? and leave code as is
 
 
 
