@@ -47,20 +47,32 @@ methods_criteria <- read.csv("C:/Users/loshita/Desktop/Projects/methods_criteria
 
 parameters <- methods_criteria %>% select(Parameter.Code, Parameter) %>% distinct()
 
+# reformatting Parameter.txt
+
+parameters <- read.table("load.AQS/monitor.labels/Parameter.txt",
+                         header = T,
+                         sep = "|",
+                         stringsAsFactors = F)
+parameters$Parameter.Name <- str_replace_all(parameters$Parameter.Name, pattern = " ", replacement = "-")
+
 write.table(parameters, "load.AQS/monitor.labels/Parameter.txt", 
             sep = "|", 
             col.names = T,
             row.names = T)
 
-
 # -----------------------------------------------------------
 # Methods
 # -----------------------------------------------------------
 
+methods <- read.table("load.AQS/monitor.labels/Method.txt",
+                      header = T,
+                      sep = "|",
+                      stringsAsFactors = F)
+methods$Method.Label <- str_replace_all(methods$Method.Label, pattern = " ", replacement = "-")
 
 methods <- methods_criteria %>% select(Method.Code, Equivalent.Method)
-methods$Method.Code <- as.character(Method.Code)
-methods$Method.Code <- str_pad(methods$Method.Code,
+methods$Method <- as.character(Method)
+methods$Method <- str_pad(methods$Method,
                           width = 3,
                           pad = "0",
                           side = "left")

@@ -1,4 +1,4 @@
-"Unit"|"Unit.Label"
+"Unit"|"Unit.Name"
 "001"|"micrograms/cubic_meter_(25_c)"
 "002"|"micrograms/cubic_meter_(0_c)"
 "003"|"nanograms/cubic_meter_(25_c)"
