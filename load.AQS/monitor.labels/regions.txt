@@ -1,4 +1,4 @@
-"code"|"region"
+"Code"|"Region"
 "01/001"|"AL/Autauga"
 "01/003"|"AL/Baldwin"
 "01/005"|"AL/Barbour"
