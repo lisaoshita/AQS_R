@@ -35,6 +35,13 @@ County.Code$county_code <- str_pad(County.Code$county_code,
                                    side = "left")
 write.table(County.Code, "load.AQS/monitor.labels/County.Code.txt", sep = "|", col.names = T, row.names = F)
 
+# reducing State.Code.txt
+
+states <- read.table("load.AQS/monitor.labels/State.Code.txt", sep = "|", header = T, stringsAsFactors = F)
+
+states <- states %>% distinct(State.Code, State.Name)
+
+write.table(states, "load.AQS/monitor.labels/State.Code.txt", sep = "|", col.names = T, row.names = F)
 
 
 # -----------------------------------------------------------
