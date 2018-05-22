@@ -46,7 +46,12 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
     data <- data[ , -which((rcol == 1) & (colnames(data) != "Date"))]
   }
   
-  if (level == 0) return(data)
+  if (level == 0) {
+    
+    attr(data, "level") <- "level 0" # setting attribute (will need it for apply.codes())
+    return(data)
+    
+  } 
   
   # ========
   # LEVEL 1
@@ -70,7 +75,12 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
                      (which(startsWith(colnames(data), "Qualifier") == TRUE)))]
   
   
-  if (level == 1) return(data)
+  if (level == 1) {
+   
+    attr(data, "level") <- "level 1"
+    return(data) 
+    
+  }
   
   # ========
   # LEVEL 2 (default level)
@@ -85,6 +95,8 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   if (level == 2) {
     
     data <- data[c("Date.Time", "Monitor.ID", "Sample.Value")] # reorders columns
+    
+    attr(data, "level") <- "level 2"
     
     return(data)
   }
@@ -127,7 +139,12 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
 
   data <- data[, c("Date.Time", "Monitor.ID", "Sample.Value")]
 
-  if (level == 3) return(data)
+  if (level == 3) {
+    
+    attr(data, "level") <- "level 3"
+    return(data) 
+  
+  }
     
   # ========
   # LEVEL 4
@@ -139,7 +156,12 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
                           na.rm = TRUE,
                           fill = 0)
     
-  if (level == 4) return(data)
+  if (level == 4) {
+   
+    attr(data, "level") <- "level 4"
+    return(data) 
+
+  }
 
 }
   
@@ -165,13 +187,7 @@ test1 <- read.aqs(filename = "tools.AQS/AMP501_1595753-0.txt", level = 3, remove
 original2 <- read.aqs(filename = "C:/Users/loshita/Desktop/AMP501_1594974-0.txt", level = 0, remove = F)
 
 
-# STILL WORKING ON: 
-
-
-
-
-
-
+# STILL WORKING ON: just need to test the function on different files
 
 
 
