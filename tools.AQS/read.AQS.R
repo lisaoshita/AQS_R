@@ -3,7 +3,7 @@
 # =========================================================================== 
 
 
-original <- read.table("load.AQS/AMP501_1595753-0.txt", sep = "|", header = TRUE,
+original <- read.table("tools.AQS/AMP501_1595753-0.txt", sep = "|", header = TRUE,
                        colClasses = c(rep("character", 12), "numeric", 
                                       rep("character", 13)))
 
@@ -147,7 +147,7 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
 # used inside the function
 get.labels <- function(filename) {
   
-  data <- read.table(file = paste("load.AQS/monitor.labels/", 
+  data <- read.table(file = paste("tools.AQS/monitor.labels/", 
                                   filename, 
                                   ".txt", 
                                   sep = ""),
@@ -160,7 +160,7 @@ get.labels <- function(filename) {
 }
 
 
-test1 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 3, remove = F)
+test1 <- read.aqs(filename = "tools.AQS/AMP501_1595753-0.txt", level = 3, remove = F)
 
 original2 <- read.aqs(filename = "C:/Users/loshita/Desktop/AMP501_1594974-0.txt", level = 0, remove = F)
 
