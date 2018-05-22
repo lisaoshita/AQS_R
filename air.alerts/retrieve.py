@@ -17,14 +17,14 @@ from email.mime.text import MIMEText
 
 def main(): 
 
-  account = "XX"
-  token = "XX"
+  account = "xx"
+  token = "xx"
   client = Client(account, token)
 
 
   # retrieve all messages sent and received on the previous date
   messages = client.messages.list(
-                                 date_sent = datetime.date.today() - datetime.timedelta(1)
+                                 date_sent = datetime.date.today()
                              )
   
   
@@ -51,9 +51,9 @@ def main():
   
   else: # send email
 
-    fromaddr = "XX"
-    recipients = ['XX', 'XX']
-    password = "XX"
+    fromaddr = "xx"
+    recipients = ['xx', 'xx']
+    password = "xx"
 
     # creating the email
     msg = MIMEMultipart()
