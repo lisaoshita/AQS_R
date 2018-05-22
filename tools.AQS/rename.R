@@ -1,7 +1,15 @@
+# =================================
+# Function to rename monitor names
+# =================================
+
+# Interactively rename/translate monitor names
+# define new class/attributes to keep track of monitor information? - if rename monitor to something 
+# simple - it's site/pollutant... are still stored in attributes somewhere
+
+
 # experimenting with readline()
 
-
-# this function renames the columns of a data frame
+# function renames the columns of a data frame
 rename <- function(data) {
   
   monitors <- colnames(data[, -1])
