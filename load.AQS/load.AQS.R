@@ -101,11 +101,8 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
     if (i == "County.Code") { 
       
       label.file <- get.labels("County")
-      
       data$County.Code <- paste(state.code, data$County.Code, sep = "/")
-      
       matches <- match(data$County.Code, label.file$Code)
-      
       data$County.Code <- label.file$Region[matches]
       
     } else {
@@ -173,9 +170,8 @@ test2 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 2, remove 
 
 # CLEAN UP LABEL.SETUP SCRIPT
 
-# FIX COUNTY AND STATE CODES!!! THEY NEED TO GO TOGETHER!!! 
 
-# clean up state.code file 
+# clean up state.code file (cut it down to unique values)
 # parameter file has a lot of missing values 
 # set function to report back if it can't find a matching label? and leave code as is
 
