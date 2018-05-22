@@ -13,6 +13,11 @@ library(reshape2) # used in read.aqs for level = 4
 
 # function will take file name as character string
 
+# note that header in AQS file must be uncommented before sending through the function
+# changed parameter file
+# there are some missing values in Method.txt
+
+
 read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   
   # ========
@@ -70,7 +75,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   # ========
   # LEVEL 2 (default level)
   # ========
-  
   # concatenating monitor labels
   paste.args <- c(data[, -c(which(colnames(data) == "Sample.Value"), 
                             which(colnames(data) == "Date.Time"))], 
@@ -88,7 +92,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   # ========
   # LEVEL 3
   # ========
-  
   to.upload <- colnames(data)[!(colnames(data) %in% c("Site.ID", 
                                                       "POC", 
                                                       "Sample.Value", 
@@ -109,7 +112,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
         
       label.file <- get.labels(i)
       var.name <- paste(i, ".Name", sep = "")
-      
       data[[i]] <- label.file[match(data[[i]], label.file[[i]]), 2] 
       
       }
@@ -123,7 +125,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   
   data$Monitor.ID <- do.call(paste, paste.args1)
 
-  
   data <- data[, c("Date.Time", "Monitor.ID", "Sample.Value")]
 
   if (level == 3) return(data)
@@ -131,7 +132,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
   # ========
   # LEVEL 4
   # ========
-  
   # Long -> wide format 
   data <- reshape2::dcast(data, 
                           Date.Time ~ Monitor.ID, 
@@ -140,8 +140,6 @@ read.aqs <- function(filename, level = 2, time.zone = "UTC", remove = FALSE) {
                           fill = 0)
     
   if (level == 4) return(data)
-
-
 
 }
   
@@ -162,18 +160,16 @@ get.labels <- function(filename) {
 }
 
 
-test2 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 2, remove = T)
+test1 <- read.aqs(filename = "load.AQS/AMP501_1595753-0.txt", level = 3, remove = F)
+
+original2 <- read.aqs(filename = "C:/Users/loshita/Desktop/AMP501_1594974-0.txt", level = 0, remove = F)
 
 
 # STILL WORKING ON: 
 
 
-# CLEAN UP LABEL.SETUP SCRIPT
 
 
-# clean up state.code file (cut it down to unique values)
-# parameter file has a lot of missing values 
-# set function to report back if it can't find a matching label? and leave code as is
 
 
 

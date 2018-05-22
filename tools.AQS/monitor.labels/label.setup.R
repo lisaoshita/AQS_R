@@ -72,7 +72,7 @@ parameters <- read.csv("C:/Users/loshita/Desktop/Projects/parameters.csv", heade
 parameters <- parameters %>% select(Parameter.Code, Parameter)
 parameters$Parameter <- str_replace_all(parameters$Parameter,
                                         pattern = " ",
-                                        replacement = "-")
+                                        replacement = "_")
 write.table(parameters, "load.AQS/monitor.labels/Parameter.txt", sep = "|", col.names = T, row.names = F)
 
 # -----------------------------------------------------------
