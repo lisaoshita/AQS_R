@@ -52,20 +52,28 @@ methods_criteria <- read.csv("C:/Users/loshita/Desktop/Projects/methods_criteria
                     header = TRUE,
                     stringsAsFactors = FALSE)
 
-parameters <- methods_criteria %>% select(Parameter.Code, Parameter) %>% distinct()
+# parameters <- methods_criteria %>% select(Parameter.Code, Parameter) %>% distinct()
+# 
+# # reformatting Parameter.txt
+# 
+# parameters <- read.table("load.AQS/monitor.labels/Parameter.txt",
+#                          header = T,
+#                          sep = "|",
+#                          stringsAsFactors = F)
+# parameters$Parameter.Name <- str_replace_all(parameters$Parameter.Name, pattern = " ", replacement = "-")
+# 
+# write.table(parameters, "load.AQS/monitor.labels/Parameter.txt", 
+#             sep = "|", 
+#             col.names = T,
+#             row.names = T)
 
-# reformatting Parameter.txt
+parameters <- read.csv("C:/Users/loshita/Desktop/Projects/parameters.csv", header = T, stringsAsFactors = F)
 
-parameters <- read.table("load.AQS/monitor.labels/Parameter.txt",
-                         header = T,
-                         sep = "|",
-                         stringsAsFactors = F)
-parameters$Parameter.Name <- str_replace_all(parameters$Parameter.Name, pattern = " ", replacement = "-")
-
-write.table(parameters, "load.AQS/monitor.labels/Parameter.txt", 
-            sep = "|", 
-            col.names = T,
-            row.names = T)
+parameters <- parameters %>% select(Parameter.Code, Parameter)
+parameters$Parameter <- str_replace_all(parameters$Parameter,
+                                        pattern = " ",
+                                        replacement = "-")
+write.table(parameters, "load.AQS/monitor.labels/Parameter.txt", sep = "|", col.names = T, row.names = F)
 
 # -----------------------------------------------------------
 # Methods
