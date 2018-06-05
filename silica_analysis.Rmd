@@ -1,0 +1,215 @@
+---
+title: "Silica Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+df <- data.frame(silica = c(20, 10, 5, 10, 10, 5),
+                 pm10 = c(310, 292, 209, 283, 161, 219))
+```
+
+
+# Linear Regression 
+
+```{r}
+linear_fit <- lm(silica ~ pm10, data = df)
+summary(linear_fit)
+```
+
+### Checking assumptions 
+
+Assumptions we need to check: the residuals have constant variance and are normal and independent, The plots below allow us to check this. The plots of Residuals vs. Fitted Values and Residuals vs. Row indicate that there seems to be a pattern in the residuals, as opposed to being random which is what we want to see. The normal quantile plot also indicates that the assumption of normality of errors has been violated. Because of these violations the parameter estimates and any other insights we can derive from this model may be biased or incorrect. When this happens, we can try to apply transformations to the predictors. 
+
+```{r, echo = F}
+df$predictions <- predict(linear_fit)
+df$residuals <- df$silica  - df$predictions # residuals
+
+# plot of residuals vs. fitted values
+library(ggplot2)
+p1 <- ggplot(data = df, aes(x = predictions, y = residuals)) + 
+      geom_point() + 
+      geom_line(alpha = 0.3) + 
+      geom_hline(yintercept = 0, col = "red", lty = 2) + 
+      ggtitle("Residuals vs. Fitted Values")
+
+df$Row <- 1:nrow(df)
+p2 <- ggplot(data = df, aes(x = Row, y = residuals)) + 
+      geom_point() + 
+      geom_line(alpha = 0.3) + 
+      geom_hline(yintercept = 0, col = "red", lty = 2) + 
+      ggtitle("Residuals vs. Row")
+
+gridExtra::grid.arrange(p1, p2, ncol = 2)
+
+# Normal Quantile Plot - assessing normality of errors
+df$stdres = rstandard(linear_fit) # calculating standardized residuals 
+qqnorm(df$stdres, 
+       ylab="Standardized Residuals", 
+       xlab="Normal Scores", 
+       main="Normal Quantile Plot of Residuals") 
+qqline(df$stdres)
+```
+
+### Log transformation on PM10
+
+```{r}
+# log transformation applied to pm10 
+df$logpm10 <- log(df$pm10)
+linear_fit2 <- lm(silica ~ logpm10, data = df)
+```
+
+```{r, echo = F}
+linear_fit2df <- data.frame(fitted_vals = linear_fit2$fitted.values,
+                            residuals = linear_fit2$residuals)
+ggplot(linear_fit2df, aes(x = fitted_vals, y = residuals)) + 
+  geom_point() + 
+  geom_line(alpha = 0.3) + 
+  geom_hline(yintercept = 0, col = "red", lty = 2) + 
+  ggtitle("Residuals vs. Fitted Values for Linear Fit with Log(PM10)")
+
+linear_fit2df$stdres = rstandard(linear_fit2) # calculating standardized residuals 
+qqnorm(linear_fit2df$stdres, 
+       ylab="Standardized Residuals", 
+       xlab="Normal Scores", 
+       main="Normal Quantile Plot of Residuals") 
+qqline(linear_fit2df$stdres)
+```
+
+
+The above graphs assess the assumptions of the model with a log transformation applied to PM10. The graphs indicate that the transformation did not resolve the issue of error violations. I also tried several other transformations but the residuals plots looked similar to these. The next step I took in this case was to just explore the possibility of higher order terms in the model (though I know we don't have a lot of data). For the analysis below, I switched the x and y variables so that this time, silica is predicting pm10.
+
+### Exploring the Possibility of a Quadratic Fit
+
+```{r}
+quad_fit <- lm(pm10 ~ poly(silica, 2), data = df)
+summary(quad_fit)
+```
+
+### Plotting the quadratic fit
+
+```{r, echo = F}
+quad_fitdf <- data.frame(predictions = predict(quad_fit, newdata = data.frame(silica = 1:60)),
+                         silica = 1:60)
+
+# plot of the quadratic fit without the prediction intervals 
+ggplot(quad_fitdf, aes(x = silica, y = predictions)) + 
+  geom_line(alpha = 0.8) + 
+  scale_x_continuous(limits = c(0, 60)) + 
+  geom_vline(xintercept = 50, col = "red", lty = 2) + 
+  geom_point(data = df, aes(x = silica, y = pm10)) + 
+  ggtitle("Quadratic Fit, without prediction or confidence intervals")
+
+pm10_prediction <- predict(quad_fit, newdata = data.frame(silica = 50))
+```
+
+With this model silica = 50 when PM10 = `r pm10_prediction`. Also, this model appears to be linear because the plot does not capture when the curve of the fit starts to change. As such, the model seems to fit the data that we have for this specific range, better than a linear fit does. 
+
+But plotting the prediction and confidence intervals indicates a huge amount of standard error around this fit. 
+
+
+```{r}
+pred <- data.frame(predict(quad_fit, newdata = data.frame(silica = 1:60),
+                           se.fit = T, interval = "prediction", level = 0.90)$fit)
+conf <- data.frame(predict(quad_fit, newdata = data.frame(silica = 1:60),
+                           se.fit = T, interval = "confidence", level = 0.90)$fit)
+
+# plot with prediction intervals 
+ggplot(quad_fitdf, aes(x = silica, y = predictions)) + 
+  geom_line(alpha = 0.8) + 
+  scale_x_continuous(limits = c(0, 60)) + 
+  scale_y_continuous("PM10") +
+  geom_vline(xintercept = 50, col = "red", lty = 2) + 
+  geom_point(data = df, aes(x = silica, y = pm10)) + 
+  geom_line(data = pred, aes(x = 1:60, y = upr), alpha = 0.5, col = "blue") + 
+  geom_line(data = pred, aes(x = 1:60, y = lwr), alpha = 0.5, col = "blue") + 
+  geom_line(data = conf, aes(x = 1:60, y = upr), alpha = 0.5, col = "purple") +
+  geom_line(data = conf, aes(x = 1:60, y = lwr), alpha = 0.5, col = "purple")
+```
+
+Plots below assess whether or not model assumptions are valid. Plot of Residuals vs. Fitted Values looks better than for linear regression. Residuals vs. Row Order also look better. The Normal Quantile plot also appears to look better, despite the one point at the bottom left. 
+
+```{r, echo = F}
+quad_resdf <- data.frame(residuals = quad_fit$residuals,
+                         fitted_vals = quad_fit$fitted.values,
+                         Rows = 1:6)
+ggplot(quad_resdf, aes(x = fitted_vals, y = residuals)) + 
+  geom_point() + 
+  geom_hline(yintercept = 0, col = "red", lty = 2) + 
+  ggtitle("Residuals vs. Fitted Values")
+
+ggplot(quad_resdf, aes(x = Rows, y = residuals)) + 
+  geom_point() + 
+  geom_hline(yintercept = 0, col = "red", lty = 2) + 
+  geom_line(alpha = 0.3) + 
+  ggtitle("Residuals vs. Row Order")
+
+quad_resdf$stdres = rstandard(quad_fit) # calculating standardized residuals 
+qqnorm(quad_resdf$stdres, 
+       ylab="Standardized Residuals", 
+       xlab="Normal Scores", 
+       main="Normal Quantile Plot of Residuals") 
+qqline(quad_resdf$stdres)
+```
+ 
+Overall, for the data we have, linear regression does not seem to be sufficient. The usual transformations we apply when linear regression assumptions have been violated were also insufficient. The next possibility I explored was a quadratic fit, which seems to best fit the data that we do have right now. 
+
+Below I have also checked the assumption of the regression on the log-transformed ratio of silica/PM10. 
+
+
+
+# Checking assumptions of log transformed ratio
+
+The plot of Residuals vs. Fitted Values and Residuals vs. Rows look fine. The Normal Quantile plot also looks okay, though some points do seem to lie far from the line. 
+
+```{r}
+logm <- lm(log(silica/pm10) ~ 1, data = df)
+summary(logm)
+```
+
+```{r, echo = F}
+df$logm_res <- logm$residuals
+df$logm_fitted <- logm$fitted.values
+
+# plot of residuals vs. fitted values
+p3 <- ggplot(data = df, aes(x = logm_fitted, y = logm_res)) + 
+      geom_point() + 
+      geom_line(alpha = 0.3) + 
+      geom_hline(yintercept = 0, col = "red", lty = 2) + 
+      ggtitle("Residuals vs. Fitted Values")
+
+p4 <- ggplot(data = df, aes(x = Row, y = logm_res)) + 
+      geom_point() + 
+      geom_line(alpha = 0.3) + 
+      geom_hline(yintercept = 0, col = "red", lty = 2) + 
+      ggtitle("Residuals vs. Row")
+
+gridExtra::grid.arrange(p3, p4, ncol = 2)
+
+df$stdres_logm = rstandard(logm) # calculating standardized residuals 
+qqnorm(df$stdres_logm, 
+       ylab="Standardized Residuals", 
+       xlab="Normal Scores", 
+       main="Normal Quantile Plot of Residuals") 
+qqline(df$stdres_logm)
+```
+
+
+
+# Beta Regression (not sure if this is valid)
+
+I also explored beta regression, which is good for when you want to model a continuous response that falls within the interval (0, 1). I'm unfamiliar with this method, but I think it might be great to look more into. 
+
+```{r}
+library(betareg)
+
+beta_fit <- betareg(I(silica/pm10) ~ 1, data = df)
+summary(beta_fit)
+```
+
+
+
+
