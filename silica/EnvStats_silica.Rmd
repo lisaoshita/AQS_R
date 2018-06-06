@@ -1,5 +1,5 @@
 ---
-title: "Silica Analysis with EnvStats"
+title: "Silica Analysis with EnvStats R Package"
 author: "Lisa Oshita"
 date: "June 5, 2018"
 output: html_document
@@ -7,6 +7,8 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library(EnvStats)
 ```
 
 
@@ -15,8 +17,6 @@ knitr::opts_chunk$set(echo = TRUE)
 The following computes the 90th and 95th percentiles, along with upper-bound 90% confidence intervals for those percentiles, of the lognormal distributions estimated from the data we have. 
 
 ```{r}
-library(EnvStats)
-
 df <- data.frame(silica = c(20, 10, 5, 10, 10, 5),
                  pm10 = c(310, 292, 209, 283, 161, 219))
 
