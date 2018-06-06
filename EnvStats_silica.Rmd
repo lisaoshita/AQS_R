@@ -1,0 +1,120 @@
+---
+title: "Silica Analysis with EnvStats"
+author: "Lisa Oshita"
+date: "June 5, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Ch 5 - Estimating Distribution Quantiles
+
+The following computes the 90th and 95th percentiles, along with upper-bound 90% confidence intervals for those percentiles, of the lognormal distributions estimated from the data we have. 
+
+```{r}
+library(EnvStats)
+
+df <- data.frame(silica = c(20, 10, 5, 10, 10, 5),
+                 pm10 = c(310, 292, 209, 283, 161, 219))
+
+# 90th percentile with upper confidence limit 
+eqlnorm(df$silica, p = 0.90, ci = T, ci.method = "exact", ci.type = "upper",
+        conf.level = 0.90)
+
+# 95th percentile with upper confidence limit
+eqlnorm(df$silica, p = 0.95, ci = T, ci.method = "exact", ci.type = "upper",
+        conf.level = 0.90)
+```
+
+
+
+# Ch 6 - Prediction Intervals
+
+Prediction intervals for the next k = 1 silica observations, assuming a lognormal distribution.
+
+```{r}
+# prediction intervals for lognormal distribution 
+df$logsilica <- log(df$silica)
+
+# two-sided prediction limits
+predIntNorm(df$logsilica, k = 1, method = "exact", pi.type = "two-sided", conf.level = 0.9)
+# lower. upper
+exp(1.051401); exp(3.322720)
+
+
+# upper prediction limit only
+predIntNorm(df$logsilica, k = 1, method = "exact", pi.type = "upper", conf.level = 0.9)
+# upper
+exp(3.018853)
+
+```
+
+* Other prediction intervals:
+    + Simultaneous prediction intervals: prediction interval that will contain a specified number of future observations with probability (1 - alpha)100% for each of r future sampling occasions. 
+
+
+
+# Ch 6 - Tolerance Intervals
+
+* Definition: an interval on the real line constructed so as to contain B100% of the population (B100% of all future observations). B is called the coverage. 
+* B-Content tolerance interval with a 95% confidence level is shown below. This kind of tolerance interval is constructed so that it contains at least 95% of the population. The other form of tolerance interval is B-expectation, which is constructed so that it contains on average B100% of the population. 
+    + B-expectation tolerance int is equivalent to a prediction interval for k = 1 future observations. 
+    + Note that B-content tolerance intervals will usually be wider than B-expectation TIs. 
+
+```{r}
+# upper TI
+tolIntLnorm(df$silica, coverage = 0.95, cov.type = "content", ti.type = "upper")
+
+# two-sided TI
+tolIntLnorm(df$silica, coverage = 0.95, cov.type = "content", ti.type = "two-sided")
+```
+
+## Non-Parametric Tolerance Intervals
+
+* can be used when there is a large amount of non-detects
+* based on the ranked data (upper tolerance limits are based on the maximum in the data)
+
+```{r}
+# creating a censored variable for the non-detects
+df$censor <- FALSE
+df$censor[df$silica == 5] <- TRUE
+
+tolIntNpar(df$silica, conf.level = 0.95, ti.type = "upper", lb = 0)
+```
+
+
+
+# Ch 8 - Censored Data 
+
+## Estimating Distribution Quantiles
+
+The following estimates the quantiles of the lognormal distribution for the data, accounting for the presence of 
+
+```{r}
+eqlnormCensored(df$silica, censored = df$censor, censoring.side = "left", 
+                p = 0.95, ci = T, ci.method = "normal.approx",
+                ci.type = "two-sided", conf.level = 0.95)
+
+# compared to the estimation of quantiles without accounting for censored data
+eqlnorm(df$silica, p = 0.95, ci = T, ci.method = "exact", ci.type = "upper",
+        conf.level = 0.90)
+```
+
+## Prediction Intervals
+
+95% prediction intervals for the next k = 1 silica observations, using methods that account for the presence of censored observations. 
+
+```{r}
+enorm.list <- elnormCensored(df$silica, df$censor)
+predIntLnorm(enorm.list, 
+             k = 1,
+             pi.type = "upper",
+             conf.level = 0.95, 
+             method = "exact")
+```
+
+
+
