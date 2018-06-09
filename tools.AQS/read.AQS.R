@@ -6,10 +6,6 @@
 
 # function will take file name as character string
 
-# header in AQS file must be uncommented before sending through the function
-# changed parameter codes to the ones in parameter.csv on AQS site
-# there are some missing values in Method.txt
-
 # for this function include reshape library as suggests
 
 # =======
@@ -18,7 +14,6 @@
 # add arguments to RC 
 # --- Include the ability to apply the levels to this RC set too
 
-# find a better way to return the data frames (using nested if statements right now)
 # ==========================================================================
 
 
@@ -34,6 +29,7 @@ read.aqs <- function(file, level = 2, time.zone = "UTC", remove = FALSE, RC = "i
              "Qualifier - 2", "Qualifier - 3", "Qualifier - 4", "Qualifier - 5",
              "Qualifier - 6", "Qualifier - 7", "Qualifier - 8", "Qualifier - 9",
              "Qualifier - 10", "Alternate.Method.Detectable.Limit", "Uncertainty")
+  
   
   # LEVEL 0 ----------------------------------------
   
@@ -64,11 +60,14 @@ read.aqs <- function(file, level = 2, time.zone = "UTC", remove = FALSE, RC = "i
     rc.data <- rc.data[ , -which(is.na(colnames(rc.data)))]
     
     rc.data$Sample.Value <- as.numeric(rc.data$Sample.Value)
+    
+    attr(rc.data, "level") <- paste("level", level, sep = " ") # set level attribute for rc data 
   
   } 
   
   data <- data[-rc.rows, ]
   data$Sample.Value <- as.numeric(data$Sample.Value)
+  attr(data, "level") <- paste("level", level, sep = " ") # set level attribute
   state.code <- data$State.Code # used in level 3
   
   if (remove == TRUE) { # remove columns that contain all same value if remove = TRUE
@@ -83,17 +82,9 @@ read.aqs <- function(file, level = 2, time.zone = "UTC", remove = FALSE, RC = "i
     
   }
   
-  if (level == 0) {
-    
-    attr(data, "level") <- "level 0"
-    if (RC == "ignore") {
-      return(data)
-    } else if (RC == "include") {
-      attr(rc.data, "level") <- "level 0"
-      return(list(data, rc.data))
-    }
-    
-  }
+  if ((level == 0) & (RC == "ignore")) return(data)
+  if ((level == 0) & (RC == "include")) return(list(data, rc.data))
+  
   
   # LEVEL 1 ----------------------------------------
   
@@ -116,18 +107,16 @@ read.aqs <- function(file, level = 2, time.zone = "UTC", remove = FALSE, RC = "i
                                                   "Uncertainty"))),
                      (which(startsWith(colnames(data), "Qualifier") == TRUE)))]
   
-  
-  if (level == 1) {
+  if (exists("rc.data")) {
     
-    attr(data, "level") <- "level 1"
-    if (RC == "ignore") {
-      return(data)
-    } else if (RC == "include") {
-      attr(rc.data, "level") <- "level 1"
-      return(list(data, rc.data))
-    }
+    # data formatting steps here
     
   }
+  
+  
+  if ((level == 1) & (RC == "ignore")) return(data)
+  if ((level == 1) & (RC == "include")) return(list(data, rc.data))
+  
   
   # LEVEL 2 ----------------------------------------
   
@@ -137,18 +126,10 @@ read.aqs <- function(file, level = 2, time.zone = "UTC", remove = FALSE, RC = "i
   
   data$Monitor.ID <- do.call(paste, paste.args)
   
-  if (level == 2) {
-    
-    data <- data[c("Date.Time", "Monitor.ID", "Sample.Value")]
-    attr(data, "level") <- "level 2"
-    if (RC == "ignore") {
-      return(data)
-    } else if (RC == "include") {
-      attr(rc.data, "level") <- "level 2"
-      return(list(data, rc.data))
-    }
-    
-  }
+  if ((level == 2) & (RC == "ignore")) return(data[c("Date.Time", "Monitor.ID", "Sample.Value")])
+  if ((level == 2) & (RC == "ignore")) return(list(data[c("Date.Time", "Monitor.ID", "Sample.Value")],
+                                                   rc.data))
+  
   
   # LEVEL 3 ----------------------------------------
   
@@ -186,20 +167,12 @@ read.aqs <- function(file, level = 2, time.zone = "UTC", remove = FALSE, RC = "i
   
   data <- data[, c("Date.Time", "Monitor.ID", "Sample.Value")]
   
-  if (level == 3) {
-    
-    attr(data, "level") <- "level 3"
-    if (RC == "ignore") {
-      return(data)
-    } else if (RC == "include") {
-      attr(rc.data, "level") <- "level 3"
-      return(list(data, rc.data))
-    }
-    
-  }
+  if ((level == 3) & (RC == "ignore")) return(data)
+  if ((level == 3) & (RC == "include")) return(list(data, rc.data))
+  
+
   
   # LEVEL 4 ----------------------------------------
-  
   
   data <- reshape2::dcast(data, # wide -> long format
                           Date.Time ~ Monitor.ID,
@@ -207,17 +180,8 @@ read.aqs <- function(file, level = 2, time.zone = "UTC", remove = FALSE, RC = "i
                           na.rm = TRUE,
                           fill = 0)
   
-  if (level == 4) {
-    
-    attr(data, "level") <- "level 4"
-    if (RC == "ignore") {
-      return(data)
-    } else if (RC == "include") {
-      attr(rc.data, "level") <- "level 4"
-      return(list(data, rc.data))
-    }
-    
-  }
+  if ((level == 4) & (RC == "ignore")) return(data)
+  if ((level == 4) & (RC == "include")) return(list(data, rc.data))
   
 }
 
@@ -232,7 +196,7 @@ original <- read.table("tools.AQS/AMP501_1595753-0.txt", sep = "|", header = TRU
                        colClasses = c(rep("character", 12), "numeric", 
                                       rep("character", 13)))
 
-test <- read.aqs(file = "testdata.txt", level = 4, RC = "include")
+test <- read.aqs(file = "testdata.txt", level = 1, RC = "include")
 
 testrd <- test[[1]]
 testrc <- test[[2]]
