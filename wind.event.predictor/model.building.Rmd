@@ -14,7 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(readr)
 library(lubridate) # for working with dates
 library(dplyr)
-library(caret) # randomforest package needs to be installed 
+library(caret) 
+library(AUC)
 ```
 
 # Objective
@@ -27,8 +28,6 @@ Build a model to predict wind event days, based on meteorological data. A wind e
 s1.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv") # contains data from 2011 - 2017
 cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv")
 ```
-
-* maybe also include month variable
 
 ```{r}
 # formatting s1.data
@@ -58,6 +57,8 @@ pm10.averages <- s1.data %>%
 
 
 d <- cbind(d, pm10.averages)
+
+rm(pm10.averages)
 
 # only using wd and ws at CDF for now, 5% of wd and ws for S1 are missing (think of ways for dealing with this - include variable for is.missing?) 
 
@@ -90,6 +91,7 @@ test.x <- d %>%
   filter(lubridate::year(date) >= 2015) %>%
   select(-date) %>%
   mutate(did.exceed = as.factor(did.exceed))
+test.x <- na.omit(test.x) # remove rows with missing values
 test.y <- test.x$did.exceed
 
 test.x <- test.x %>% select(-did.exceed)
@@ -106,21 +108,17 @@ prop.table(table(train$did.exceed))
 
 ```{r}
 # random forest won't work with missing values 
-train %>%
-  filter(is.na(did.exceed))
-
 # removing rows that contain NAs (only 82 rows contained NAs)
 train <- na.omit(train) 
 ```
 
-
-
-# Random Forest
+# Random Forest parameter tuning
 
 ```{r}
-# parameter tuning
-grid <- expand.grid(mtry = c(5, round(sqrt(ncol(d))), 
-                              15, 25, 30))
+grid <- expand.grid(.mtry = c(5, round(sqrt(ncol(d))), 
+                              15, 25, 30),
+                    .splitrule = "gini",
+                    .min.node.size = c(5, 10, 20))
 
 tune.control <- trainControl(method = "cv", 
                              number = 5,
@@ -129,19 +127,123 @@ tune.control <- trainControl(method = "cv",
 
 set.seed(1)
 
-start.tune <- Sys.time()
-rf.tuning <- train(did.exceed ~ ., 
+# tuning on 500 trees
+start.tune.500 <- Sys.time()
+rf.tuning500 <- train(did.exceed ~ ., 
                    data = train, 
-                   method = "ranger", # a form of random forests  ranger and e1071 packages need to be installed
+                   method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
                    tuneGrid = grid, 
-                   ntree = c(500, 1000, 1500),
+                   num.trees = 500,
                    trControl = tune.control)
-end.tune <- Sys.time()
+end.tune.500 <- Sys.time() # 45 seconds
+
+# tuning on 1000 trees
+start.tune.1000 <- Sys.time()
+rf.tuning1000 <- train(did.exceed ~ ., 
+                   data = train, 
+                   method = "ranger", 
+                   tuneGrid = grid, 
+                   num.trees = 1000,
+                   trControl = tune.control)
+end.tune.1000 <- Sys.time() # 1.40 minutes
+
+# tuning on 1500 trees
+start.tune.1500 <- Sys.time()
+rf.tuning.1500 <- train(did.exceed ~ ., 
+                   data = train, 
+                   method = "ranger",
+                   tuneGrid = grid, 
+                   num.trees = 1500,
+                   trControl = tune.control)
+end.tune.1500 <- Sys.time() # 1.65 minutes
+
+
+# parameter tuning results
+plot(rf.tuning500) 
+rf.tuning500
+rf.tuning500$bestTune # accuracy: 0.8948349, mtry = 15, min.node.size = 5
+
+
+plot(rf.tuning1000)
+rf.tuning1000
+rf.tuning1000$bestTune # accuracy: 0.8949005, mtry = 7, min.node.size = 10
+
+
+plot(rf.tuning.1500)
+rf.tuning.1500
+rf.tuning.1500$bestTune # accuracy: 0.8941238, mtry = 15, min.node.size = 20
+
+
+## really is no difference in accuracy among these models
 ```
 
+# Fitting model to the full training set
 
+```{r}
+final.grid <- data.frame(.mtry = 7,
+                         .splitrule = "gini",
+                         .min.node.size = 10)
 
+final.control <- trainControl(method = "none",
+                              verboseIter = TRUE,
+                              classProbs = TRUE)
+  
+start.fit <- Sys.time()
+rf.fit <- train(did.exceed ~ ., 
+                data = train,
+                method = "ranger",
+                tuneGrid = final.grid,
+                trControl = final.control,
+                num.trees = 1000,
+                importance = "impurity")
+end.fit <- Sys.time() # 1.4 seconds
 
+# compute predictions
+rf.preds <- predict(rf.fit, newdata = test.x, type = "prob")
+
+rf.preds <- rf.preds %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test.y)
+
+# classification accuracy
+mean(rf.preds$actual == rf.preds$prediction) # 87% accuracy
+
+# ROC, AUC
+roc.metric <- roc(predictions = rf.preds$yes,
+                  labels = as.factor(ifelse(as.character(test.y) == "yes", 1, 0)))
+auc.metric <- auc(roc.metric)
+
+plot(roc.metric, main = paste("AUC:", auc.metric))
+# sensitivity: true positive rate - ability of the model to correctly identify wind event days
+# specificity: true negative rate - ability of the model to correctly identify non-wind event days
+
+# assessing variable importance
+# this plot shows 
+plot(varImp(rf.fit))
+varImp(rf.fit)
+```
+
+# Results of this round of parameter tuning
+
+The random forest trained on wind speed and direction at CDF for different hours of the day as well as month + parameter tuned did not seem to result in an improvement in accuracy 
+
+* correlation between wind direction variables throughout the day 
+* correlation between wind speed variables throughout the day 
+
+```{r}
+library(ggplot2)
+
+ggplot(s1.data, aes(x = ws.cdf)) + 
+  geom_histogram()
+
+# instead only keep track of the number of times wind speed was greater than 5? 
+# and how many times it was > 5, the hours of the day it was > 5
+
+# have a single variable determining if wind direction is pointing in the "right" way
+
+ggplot(s1.data, aes(x = wd.cdf)) + 
+  geom_histogram()
+```
 
 
 
