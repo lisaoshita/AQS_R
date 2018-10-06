@@ -16,6 +16,7 @@ library(lubridate) # for working with dates
 library(dplyr)
 library(caret) 
 library(AUC)
+library(openair)
 ```
 
 # Objective
@@ -25,8 +26,48 @@ Build a model to predict wind event days, based on meteorological data. A wind e
 # Load data
 
 ```{r}
-s1.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv") # contains data from 2011 - 2017
-cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv")
+s1.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
+                    col_types = list(date = "c",
+                                     ws.cdf = "n",
+                                     wd.cdf = "n",
+                                     pm10.cdf = "n",
+                                     pm10.oso = "n",
+                                     wd.s1 = "n",
+                                     ws.s1 = "n",
+                                     year = "n")) # contains data from 2011 - 2017
+
+s1.data <- s1.data %>%
+  mutate(date = parse_date_time(date, "Ymd HMS"))
+
+cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv",
+                       col_types = list(date = "c",
+                                        ws = "n",
+                                        wd = "n",
+                                        pm25 = "n",
+                                        pm10 = "n",
+                                        u = "n",
+                                        v = "n", 
+                                        year = "n",
+                                        precip = "n",
+                                        s.rad = "n",
+                                        a.temp = "n",
+                                        rh = "n",
+                                        dp = "n",
+                                        s.temp = "n",
+                                        height = "n",
+                                        temp850 = "n",
+                                        ws.max = "n",
+                                        wd.max = "n",
+                                        u.max = "n",
+                                        v.max = "n",
+                                        time = "n",
+                                        dow = "n",
+                                        u.s1 = "n",
+                                        v.s1 = "n",
+                                        u.max.s1 = "n",
+                                        v.max.s1 = "n"))
+
+cdf.master$date <- date(cdf.master$date)
 ```
 
 ```{r}
@@ -41,7 +82,7 @@ d <- s1.data[s1.data$hour==0, c(9, 2, 3)]
 names(d) <- c("date1", paste(names(d)[-1], 0, sep="."))
 
 for(i in 1:23){
-  dd <- s1.data[s1.data$hour==i, c(2, 3)]
+  dd <- s1.data[s1.data$hour==i, c(2, 3, 6, 7)]
   names(dd) <- paste(names(dd), i, sep=".")
   d <- cbind(d,dd)
 }
@@ -97,6 +138,94 @@ test.y <- test.x$did.exceed
 test.x <- test.x %>% select(-did.exceed)
 ```
 
+```{r}
+training <- s1.data %>%
+  filter(lubridate::year(date) < 2015)
+
+cdf.training <- training %>%
+  select(date, year, ws.cdf, wd.cdf, pm10.cdf)
+colnames(cdf.training) <- c("date", "year", "ws", "wd", "pm10")
+
+s1.training <- training %>%
+  select(date, year, wd.s1, ws.s1, pm10.cdf) %>%
+  mutate(wd.s1 = as.integer(wd.s1)) %>%
+  mutate(ws.s1 = as.numeric(ws.s1))
+colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
+
+polarPlot(cdf.training, 
+          pollutant = "pm10",
+          x = "ws",
+          wd = "wd")
+
+cdf.clust <- polarCluster(cdf.training, 
+                          pollutant = "pm10",
+                          x = "ws",
+                          wd = "wd",
+                          n.clusters = 2) # cluster 2 is high pm10 
+
+cdf.clust$data %>%
+  filter(cluster == 2) %>%
+  summarize(min_wd = min(wd),
+            max_wd = max(wd),
+            min_ws = min(ws),
+            max_ws = max(ws)) # criteria: wd between 288 - 320, ws between 9.2 - 20.7
+
+
+s1.clust <- polarCluster(s1.training,
+                         pollutant = "pm10",
+                         x = "ws",
+                         wd = "wd",
+                         n.clusters = 2)
+
+s1.clust$data %>%
+  filter(cluster == 2) %>%
+  summarize(min_wd = min(wd),
+            max_wd = max(wd),
+            min_ws = min(ws),
+            max_ws = max(ws)) # criteria: wd between 281 - 306, ws between 8.88 - 16.11
+
+# creating variables indicating if wd or ws falls within these ranges 
+
+# group by day, count the number of times wd + ws fall within the ranges, time of day that they do fall in the range?  (or maybe time of day that had the most extreme values) 
+
+train1 <- training %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  group_by(date.only) %>%
+  summarize(ws.in.range.cdf = sum((ws.cdf > 9) & (ws.cdf < 21), na.rm = T),
+            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = T),
+            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = T),
+            ws.in.range.s1 = sum((ws.s1 > 8) & (ws.s1 < 17), na.rm = T))
+
+
+# adding pm10 variable
+pm10.averages <- training %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+
+# merge train1 with other columns in cdf.master
+head(cdf.master)
+colnames(train1)[1] <- "date"
+
+train1$did.exceed = pm10.averages$did.exceed
+
+
+train1 <- train1 %>%
+  left_join(cdf.master, by = "date") %>%
+  select(date, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+         ws.in.range.s1, did.exceed, precip, s.rad, a.temp, rh, s.temp) %>%
+  mutate(month = month(date))
+
+train1 <- na.omit(train1)
+```
+
+
+```{r}
+
+```
+
+
 # Examining the response variable 
 
 ```{r}
@@ -110,13 +239,15 @@ prop.table(table(train$did.exceed))
 # random forest won't work with missing values 
 # removing rows that contain NAs (only 82 rows contained NAs)
 train <- na.omit(train) 
+
+sqrt(ncol(train))
 ```
 
 # Random Forest parameter tuning
 
 ```{r}
-grid <- expand.grid(.mtry = c(5, round(sqrt(ncol(d))), 
-                              15, 25, 30),
+grid <- expand.grid(.mtry = c(5, round(sqrt(ncol(train))), 
+                              20, 30),
                     .splitrule = "gini",
                     .min.node.size = c(5, 10, 20))
 
@@ -126,7 +257,7 @@ tune.control <- trainControl(method = "cv",
                              classProbs = TRUE)
 
 set.seed(1)
-
+ncol(train)
 # tuning on 500 trees
 start.tune.500 <- Sys.time()
 rf.tuning500 <- train(did.exceed ~ ., 
@@ -137,6 +268,7 @@ rf.tuning500 <- train(did.exceed ~ .,
                    trControl = tune.control)
 end.tune.500 <- Sys.time() # 45 seconds
 
+end.tune.500 - start.tune.500 # 22.87068 mins
 # tuning on 1000 trees
 start.tune.1000 <- Sys.time()
 rf.tuning1000 <- train(did.exceed ~ ., 
@@ -242,11 +374,17 @@ ggplot(s1.data, aes(x = ws.cdf)) +
 # have a single variable determining if wind direction is pointing in the "right" way
 
 ggplot(s1.data, aes(x = wd.cdf)) + 
-  geom_histogram()
+  geom_histogram() # bimodal? 
 ```
 
 
+```{r}
+# looking at s1 variables and missing values
 
+delete <- s1.data %>%
+  filter(!is.na(ws.s1)) %>%
+group_by(date1) 
+```
 
 
 
