@@ -17,11 +17,12 @@ library(dplyr)
 library(caret) 
 library(AUC)
 library(openair)
+library(xgboost)
 ```
 
 # Objective
 
-Build a xgboost model to predict wind event days, based on meteorological data. A wind event is defined as any day when the 24-hour average PM10 concentration at CDF exceeds the state standard, i.e. 50 ug/m3. 
+Build an xgboost model to predict wind event days, based on meteorological data. A wind event is defined as any day when the 24-hour average PM10 concentration at CDF exceeds the state standard, i.e. 50 ug/m3. 
 
 ```{r load data}
 s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
@@ -166,6 +167,58 @@ train1 <- na.omit(train1)
 # need 2015 - 2017 for cdf.master to set up test data
 ```
 
+
+```{r}
+xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
+                             max_depth = c(3, 6, 10),
+                             eta = 0.3,
+                             gamma = 1,
+                             min_child_weight = 1, 
+                             colsample_bytree = c(0.5, 0.8),
+                             subsample = c(0.5, 0.8))
+
+tune.control <- trainControl(method = "cv", 
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE)
+
+
+
+start.tune.xgb <- Sys.time()
+xgb.tune <- train(did.exceed ~ ., 
+                  data = train1, 
+                  method = "xgbTree", # fast implementation of a random forest: ranger, e1071 need to be installed
+                  tuneGrid = xgb.tune.grid,
+                  trControl = tune.control,
+                  importance = "impurity")
+end.tune.xgb <- Sys.time() # 19 seconds
+
+# max_depth = 6, colsample_bytree = 0.5, subsample = 0.8, nrounds = 500 --> accuracy: 0.9141694 
+
+```
+
+```{r}
+xgb.tune.grid2 <- expand.grid(nrounds = c(1000, 1500),
+                             max_depth = c(3, 6, 10),
+                             eta = 0.05,
+                             gamma = 1,
+                             min_child_weight = 1, 
+                             colsample_bytree = c(0.5, 0.8),
+                             subsample = c(0.5, 0.8))
+
+start.tune.xgb2 <- Sys.time()
+xgb.tune2 <- train(did.exceed ~ ., 
+                  data = train1, 
+                  method = "xgbTree", # fast implementation of a random forest: ranger, e1071 need to be installed
+                  tuneGrid = xgb.tune.grid2,
+                  trControl = tune.control,
+                  importance = "impurity")
+end.tune.xgb2 <- Sys.time() # 19 seconds
+
+# max_depth = 6, colsample_bytree = 0.8, subsample = 0.5, nrounds = 1000 --> accuracy: 0.9141826 
+
+xgb.tune2 
+```
 
 
 
