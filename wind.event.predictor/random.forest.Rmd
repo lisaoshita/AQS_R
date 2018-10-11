@@ -1,5 +1,5 @@
 ---
-title: "Wind Event Predictor"
+title: "Wind Event Predictor - Random forest"
 author: "Lisa Oshita"
 date: "October 3, 2018"
 output: html_document
@@ -21,7 +21,7 @@ library(openair)
 
 # Objective
 
-Build a model to predict wind event days, based on meteorological data. A wind event is defined as any day when the 24-hour average PM10 concentration at CDF exceeds the state standard, i.e. 50 ug/m3. 
+Build a random forest model to predict wind event days, based on meteorological data. A wind event is defined as any day when the 24-hour average PM10 concentration at CDF exceeds the state standard, i.e. 50 ug/m3. 
 
 ```{r load data}
 s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
@@ -286,12 +286,3 @@ plot(varImp(rf.tuning.500))
 # plot(varImp(rf.fit))
 # varImp(rf.fit)
 ```
-
-
-
-
-
-
-
-
-
