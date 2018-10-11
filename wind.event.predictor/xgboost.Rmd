@@ -218,6 +218,9 @@ end.tune.xgb2 <- Sys.time() # 19 seconds
 # max_depth = 6, colsample_bytree = 0.8, subsample = 0.5, nrounds = 1000 --> accuracy: 0.9141826 
 
 xgb.tune2 
+
+varImp(xgb.tune2)
+plot(varImp(xgb.tune2))
 ```
 
 
