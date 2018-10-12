@@ -223,8 +223,125 @@ varImp(xgb.tune2)
 plot(varImp(xgb.tune2))
 ```
 
+# PCA on wind direction + wind speed variables 
+
+```{r}
+# converting cdf data to wide format
+d <- s1.cdf.data[s1.cdf.data$hour == 0, c(9, 2, 3)]
+names(d) <- c("date", paste(names(d)[-1], 0, sep="."))
+for(i in 1:23){
+  dd <- s1.data[s1.data$hour==i, c(2, 3)]
+  names(dd) <- paste(names(dd), i, sep=".")
+  d <- cbind(d,dd)
+}
+
+# converting s1 data to wide format 
+d1 <- s1.cdf.data[s1.cdf.data$hour == 0, c(9, 6, 7)]
+names(d1) <- c("date", paste(names(d1)[-1], 0, sep = "."))
+for (i in 1:23) {
+  dd <- s1.data[s1.data$hour == i, c(6, 7)]
+  names(dd) <- paste(names(dd), i, sep = ".")
+  d1 <- cbind(d1, dd)
+}
+rm(dd, i)
+
+# joining d and d1
+full_df <- d %>%
+  left_join(d1, by = "date") %>%
+  filter(year(date) < 2015)
+
+# removing missing rows
+nrow(full_df) - nrow(na.omit(full_df)) # removing 146 features
+full_df <- na.omit(full_df) 
+
+full_df <- full_df %>% mutate_if(is.character, as.numeric)
+```
+
+```{r}
+# ------------------------
+# PCA on wd + ws for CDF
+# ------------------------
+wd.cdf.pca <- prcomp(x = (full_df %>% select(starts_with("wd.cdf"))), center = TRUE, scale = TRUE)
+plot(wd.cdf.pca, type = "l") # plot indicates how many principal components to retain
+# indicates that first 3 are sufficient - explain the most amount of variation within the data 
+
+ws.cdf.pca <- prcomp(x = (full_df %>% select(starts_with("ws.cdf"))), center = TRUE, scale = TRUE)
+plot(ws.cdf.pca, type =  "l") # use first 3
+
+# ------------------------
+# PCA on wd + ws for S1
+# ------------------------
+wd.s1.pca <- prcomp(x = (full_df %>% select(starts_with("wd.s1"))), center = TRUE, scale = TRUE)
+plot(wd.s1.pca, type = "l")
+
+ws.s1.pca <- prcomp(x = (full_df %>% select(starts_with("ws.s1"))), center = TRUE, scale = TRUE)
+plot(ws.s1.pca, type = "l")
+
+# use the first 3 PCs 
 
 
+new_train <- full_df %>% 
+  select(date) %>%
+  mutate(wd.cdf.pc1 = wd.cdf.pca$x[ , 1]) %>%
+  mutate(wd.cdf.pc2 = wd.cdf.pca$x[ , 2]) %>%
+  mutate(wd.cdf.pc3 = wd.cdf.pca$x[ , 3]) %>%
+  mutate(ws.cdf.pc1 = ws.cdf.pca$x[ , 1]) %>%
+  mutate(ws.cdf.pc2 = ws.cdf.pca$x[ , 2]) %>%
+  mutate(ws.cdf.pc3 = ws.cdf.pca$x[ , 3]) %>% 
+  mutate(ws.s1.pc1 = ws.s1.pca$x[ , 1]) %>%
+  mutate(ws.s1.pc2 = ws.s1.pca$x[ , 2]) %>%
+  mutate(ws.s1.pc3 = ws.s1.pca$x[ , 3]) %>%
+  mutate(wd.s1.pc1 = wd.s1.pca$x[ , 1]) %>%
+  mutate(wd.s1.pc2 = wd.s1.pca$x[ , 2]) %>%
+  mutate(wd.s1.pc3 = wd.s1.pca$x[ , 3])
+
+colnames(pm10.averages)[1] <- "date"
+
+new_train <- new_train %>%
+  left_join(pm10.averages, by = "date") %>%
+  left_join(cdf.master, by = "date") %>%
+  select(date, starts_with("wd.cdf"), 
+         starts_with("ws.cdf"), starts_with("wd.s1"), 
+         starts_with("ws.s1"), precip, s.rad, 
+         a.temp, rh, dp, s.temp, height, temp850, did.exceed) %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(-date)
+
+new_train <- na.omit(new_train) # dropping 149 observations 
+```
+
+```{r}
+# parameter tuning on new train df 
+xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
+                             max_depth = c(3, 6, 10),
+                             eta = 0.3,
+                             gamma = 1,
+                             min_child_weight = 1, 
+                             colsample_bytree = c(0.5, 0.8),
+                             subsample = c(0.5, 0.8))
+
+tune.control <- trainControl(method = "cv", 
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE)
+
+
+
+start.tune.xgb3 <- Sys.time()
+xgb.tune3 <- train(did.exceed ~ ., 
+                  data = new_train, 
+                  method = "xgbTree", # fast implementation of a random forest: ranger, e1071 need to be installed
+                  tuneGrid = xgb.tune.grid,
+                  trControl = tune.control,
+                  importance = "impurity")
+end.tune.xgb3 <- Sys.time() # 19 seconds
+
+xgb.tune3
+varImp(xgb.tune3)
+
+# model doesn't perform differently/better than models previously explored
+```
 
 
 
