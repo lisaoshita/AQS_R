@@ -348,6 +348,12 @@ varImp(xgb.tune3)
 
 
 
+```{r}
+ggplot(pm10.averages, aes(x = pm10.ave)) +
+  geom_histogram()
+
+colnames(pm10.averages)
+```
 
 
 

@@ -341,7 +341,8 @@ grid2 <- expand.grid(.mtry = c(round(sqrt(ncol(train2))),
 
 tune.control2 <- trainControl(method = "cv", 
                              number = 5,
-                             verboseIter = TRUE)
+                             verboseIter = TRUE,
+                             savePredictions = TRUE)
 
 set.seed(1)
 # tuning on 500 trees
@@ -349,9 +350,9 @@ start.tune.500.2 <- Sys.time()
 rf.tuning.500.2 <- train(pm10.ave ~ ., 
                    data = train2, 
                    method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
-                   tuneGrid = grid, 
+                   tuneGrid = grid2, 
                    num.trees = 500,
-                   trControl = tune.control,
+                   trControl = tune.control2,
                    importance = "impurity")
 end.tune.500.2 <- Sys.time() # 19 seconds
 
@@ -360,9 +361,9 @@ start.tune.1000.2 <- Sys.time()
 rf.tuning.1000.2 <- train(pm10.ave ~ ., 
                    data = train2, 
                    method = "ranger", 
-                   tuneGrid = grid, 
+                   tuneGrid = grid2, 
                    num.trees = 1000,
-                   trControl = tune.control,
+                   trControl = tune.control2,
                    importance = "impurity")
 end.tune.1000.2 <- Sys.time() # 1.40 minutes
 
@@ -371,13 +372,13 @@ start.tune.1500.2 <- Sys.time()
 rf.tuning.1500.2 <- train(pm10.ave ~ ., 
                    data = train2, 
                    method = "ranger",
-                   tuneGrid = grid, 
+                   tuneGrid = grid2, 
                    num.trees = 1500,
-                   trControl = tune.control,
+                   trControl = tune.control2,
                    importance = "impurity")
 end.tune.1500.2 <- Sys.time() # 1.65 minutes
 
-rf.tuning.500.2$
+rf.tuning.500.2$pred
 ```
 
 
