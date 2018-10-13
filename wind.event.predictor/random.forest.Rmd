@@ -286,3 +286,125 @@ plot(varImp(rf.tuning.500))
 # plot(varImp(rf.fit))
 # varImp(rf.fit)
 ```
+
+
+# Predicting 24 hour pm10 concentration (not binary classification)
+
+```{r}
+train2 <- training %>%
+  group_by(date.only) %>%
+  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.wd.cdf = max(wd.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            max.wd.s1 = max(wd.s1, na.rm = TRUE),
+            hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+            hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+            ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
+            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
+            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
+            ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
+  mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
+
+
+# adding pm10 variable
+pm10.averages2 <- training %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE))
+
+colnames(train2)[1] <- "date"
+train2$pm10.ave = pm10.averages$pm10.ave
+
+# merge train1 with other columns in cdf.master
+train2 <- train2 %>%
+  left_join(cdf.master, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(pm10.ave, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+         ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+         hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+nrow(train2) - nrow(na.omit(train2)) # removing 226 rows
+train2 <- na.omit(train2)
+
+
+grid2 <- expand.grid(.mtry = c(round(sqrt(ncol(train2))), 
+                              8, 10, 15),
+                    .splitrule = "variance",
+                    .min.node.size = c(5, 10, 20))
+
+tune.control2 <- trainControl(method = "cv", 
+                             number = 5,
+                             verboseIter = TRUE)
+
+set.seed(1)
+# tuning on 500 trees
+start.tune.500.2 <- Sys.time()
+rf.tuning.500.2 <- train(pm10.ave ~ ., 
+                   data = train2, 
+                   method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
+                   tuneGrid = grid, 
+                   num.trees = 500,
+                   trControl = tune.control,
+                   importance = "impurity")
+end.tune.500.2 <- Sys.time() # 19 seconds
+
+# tuning on 1000 trees
+start.tune.1000.2 <- Sys.time()
+rf.tuning.1000.2 <- train(pm10.ave ~ ., 
+                   data = train2, 
+                   method = "ranger", 
+                   tuneGrid = grid, 
+                   num.trees = 1000,
+                   trControl = tune.control,
+                   importance = "impurity")
+end.tune.1000.2 <- Sys.time() # 1.40 minutes
+
+# tuning on 1500 trees
+start.tune.1500.2 <- Sys.time()
+rf.tuning.1500.2 <- train(pm10.ave ~ ., 
+                   data = train2, 
+                   method = "ranger",
+                   tuneGrid = grid, 
+                   num.trees = 1500,
+                   trControl = tune.control,
+                   importance = "impurity")
+end.tune.1500.2 <- Sys.time() # 1.65 minutes
+
+rf.tuning.500.2$
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
