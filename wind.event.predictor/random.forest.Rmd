@@ -378,7 +378,32 @@ rf.tuning.1500.2 <- train(pm10.ave ~ .,
                    importance = "impurity")
 end.tune.1500.2 <- Sys.time() # 1.65 minutes
 
-rf.tuning.500.2$pred
+rf.tuning.500.2$bestTune # mtry = 8, min.node.size = 5 RMSE: 12.16776  r2: 0.8233791  MAE: 8.976453 ****
+rf.tuning.1000.2$bestTune # mtry = 10, min.node.size = 5 RMSE: 12.07823  r2: 0.8215156  MAE: 8.931860
+rf.tuning.1500.2$bestTune # mtry = 8, min.node.size = 5 RMSE: 11.95274 r2: 0.8239232  MAE: 8.873622
+
+rf.tuning.500.2
+
+
+# new metric
+# if the difference between prediction and actual concentration is > x 
+# then classify as incorrect ? 
+# this metric wouldn't rely on the probability threshold - would depend on how close the predictino was to the actual value
+
+# grabbing predictions
+
+preds <- rf.tuning.500.2$pred %>%
+  filter(mtry == 8) %>%
+  filter(min.node.size == 5) %>%
+  mutate(residual = pred - obs)
+
+
+
+ggplot(preds, aes(x = residual)) +
+  geom_histogram()
+
+sum(abs(preds$residual) > 15) / nrow(preds) # 17% of predictions have residuals greater than 15
+
 ```
 
 
