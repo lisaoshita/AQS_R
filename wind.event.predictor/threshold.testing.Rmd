@@ -11,15 +11,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Writing a function to test the pm10 concentration threshold - try 40, 50, 60 
 
-```{r}
-ggplot(pm10.averages, aes(x = pm10.ave)) + 
-  geom_histogram()
-
-
-names(pm10.averages)
-
-sum(pm10.averages$pm10.ave > 30, na.rm = TRUE) / nrow(pm10.averages)
-```
 
 ```{r}
 train1 <- training %>%
@@ -232,29 +223,30 @@ library(tree)
 treefit <- tree(as.factor(did.exceed) ~ ., data = train, split = "gini" )
 summary(treefit)
 
-# prune tree; Run these next two lines a few times, to get a feel for best size
-cv.treeall <- cv.tree(treefit, FUN = prune.misclass)
+cv.treefit <- cv.tree(treefit, FUN = prune.misclass)
+cv.treefit
+plot(cv.treefit) # size = 6 or 7 did best
 
-cv.treeall
-plot(cv.treeall)  ## 3 or 4 usually seems best
-prune.all<-prune.misclass(treefit, best = 8)
 
-summary(prune.all) # 3 node: 0.094 = 123/1302
-plot(prune.all)
-text(prune.all)
+
+pruned.tree <- prune.misclass(treefit, best = 7)
+summary(pruned.tree) #  0.09636 = 119 / 1235 
+plot(pruned.tree)
+text(pruned.tree)
+
+del <- pruned.tree$frame
 
 # re-train again, using only variables in pruned tree 
-vars<-unique(as.character(prune.all$frame[,1]))
-vars<-vars[-which(vars=="<leaf>")]
-dd<-train[,c("did.exceed", vars)]
-dd<-dd[complete.cases(dd),]
+vars <- unique(as.character(pruned.tree$frame[ , 1]))
+vars <- vars[-which(vars == "<leaf>")]
+new.train <- train[ , c("did.exceed", vars)]
 
-tree.all4<-tree(as.factor(did.exceed) ~ . , data = dd, split="gini")
-tree.all4
-summary(tree.all4) # misclass :0.07522 = 102 / 1356
-plot(tree.all4)
-text(tree.all4)
-summary(dd$exceed[dd$year < 2015]) # NULL error: 0.218
+
+new.tree <- tree(did.exceed ~ ., data = new.train, split = "gini")
+summary(new.tree) #  0.08259 = 102 / 1235
+
+
+
 ```
 
 
