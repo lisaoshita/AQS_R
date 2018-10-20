@@ -320,7 +320,9 @@ plot(roc.metric, main = paste("AUC:", auc.metric))
 plot(varImp(rf.fit))
 varImp(rf.fit)
 
-
+table(rf.preds$prediction, rf.preds$actual)
+# precision = 138 / (16 + 138) = 0.896 # out of all that are being classified as true/yes - 89.6% are actually true/yes
+# recall = 138 / (62 + 138) = 0.69 (out of all true observations, percentage of those that are being classified correctly)
 ```
 
 
@@ -493,6 +495,11 @@ roc.metric.tree <- roc(predictions = tree.preds$yes,
 auc.metric.tree <- auc(roc.metric.tree)
 
 plot(roc.metric.tree, main = paste("AUC:", auc.metric.tree))
+
+# confusion matrix
+table(tree.preds$prediction, tree.preds$actual)
+# precision = 127 / (34 + 127) = 0.789 # out of all that are being classified as true/yes - 78.9% are actually true/yes
+# recall = 127 / (73 + 127) = 0.63.5 (out of all true observations, percentage of those that are being classified correctly)
 ```
 
 
