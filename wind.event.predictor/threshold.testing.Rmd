@@ -1,0 +1,269 @@
+---
+title: "Threshold testing"
+author: "Lisa Oshita"
+date: "October 19, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Writing a function to test the pm10 concentration threshold - try 40, 50, 60 
+
+```{r}
+ggplot(pm10.averages, aes(x = pm10.ave)) + 
+  geom_histogram()
+
+
+names(pm10.averages)
+
+sum(pm10.averages$pm10.ave > 30, na.rm = TRUE) / nrow(pm10.averages)
+```
+
+```{r}
+train1 <- training %>%
+  group_by(date.only) %>%
+  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.wd.cdf = max(wd.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            max.wd.s1 = max(wd.s1, na.rm = TRUE),
+            hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+            hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+            ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
+            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
+            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
+            ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
+  mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
+
+# joining cdf.master
+colnames(train1)[1] <- "date"
+
+train1 <- train1 %>%
+  left_join(cdf.master, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = month(date))
+
+# calculating 24 hour pm10 averages
+pm10.averages <- training %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE))
+
+# for parameter tuning
+grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))), 
+                              8, 10, 15),
+                    .splitrule = "gini",
+                    .min.node.size = c(5, 10, 20))
+
+tune.control <- trainControl(method = "cv", 
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE)
+
+
+# function to test different pm10 thresholds
+test_threshold <- function(pm10.threshold) {
+
+  pm10.averages <- pm10.averages %>%
+    mutate(did.exceed = ifelse(pm10.ave >= pm10.threshold, "yes", "no"))
+  
+  train <- train1 %>%
+    mutate(did.exceed = pm10.averages$did.exceed) %>%
+    select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+           ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+           hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
+           precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+  
+  train <- na.omit(train) # drop rows with missing values
+  
+  grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))), 
+                              8, 10, 15),
+                    .splitrule = "gini",
+                    .min.node.size = c(5, 10, 20))
+  
+  results <- list()
+  for (i in 1:nrow(grid)) {
+    model <- train(did.exceed ~ ., 
+                  data = train, 
+                  method = "ranger", 
+                  tuneGrid = grid[i , ], 
+                  num.trees = 500,
+                  trControl = tune.control,
+                  importance = "impurity")
+    preds <- predict(model, newdata = train, type = "prob")
+    preds <- preds %>%
+      mutate(prediction = ifelse(yes >= pr.threshold, "yes", "no")) %>%
+      mutate(actual = train$did.exceed)
+
+    # classification accuracy
+    mean(rf.preds$actual == rf.preds$prediction) # 87% accuracy
+
+    # ROC, AUC
+    roc.metric <- roc(predictions = rf.preds$yes,
+                      labels = as.factor(ifelse(as.character(test.y) == "yes", 1, 0)))
+    auc.metric <- auc(roc.metric)
+    
+  }
+  rf.tuning.500 <- train(did.exceed ~ ., 
+                         data = train, 
+                         method = "ranger", 
+                         tuneGrid = grid, 
+                         num.trees = 500,
+                         trControl = tune.control,
+                         importance = "impurity")
+  
+  rf.tuning.500$bestTune
+  return(rf.tuning.500)
+}
+
+
+```
+
+
+```{r}
+threshold.test.results <- purrr::map(c(30, 50, 60), ~test_threshold(.))
+# Fitting mtry = 8, splitrule = gini, min.node.size = 10 on full training set
+# Fitting mtry = 6, splitrule = gini, min.node.size = 10 on full training set
+# Fitting mtry = 8, splitrule = gini, min.node.size = 5 on full training set
+
+
+  pm10.averages <- pm10.averages %>%
+    mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+  
+  train <- train1 %>%
+    mutate(did.exceed = pm10.averages$did.exceed) %>%
+    select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+           ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+           hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
+           precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+  
+  train <- na.omit(train) # drop rows with missing values
+  
+
+  
+  blah <- predict(rf.tuning.500, newdata = train, type = "prob")
+  blah
+  
+  
+
+  
+tune.control  
+# defining new metric
+# new.accuracy <- function(data, lev = NULL, model = NULL) {
+#   data <- data %>%
+#     mutate(prediction = ifelse(yes >= 0.6, "yes", "no"))
+#   new.accuracy <- sum(data$prediction == data$obs) / nrow(data)
+#   return(list(metric = "new.accuracy", value = new.accuracy))
+# }
+
+customSummary <- function (data, lev = NULL, model = NULL){
+  # spec <- specificity(data[, "pred"], data[, "obs"], lev[2])
+  pred <- factor(ifelse(data[, "yes"] > 0.50, "yes", "no"))
+  # spec2 <- specificity(pred, data[, "obs"], "no")
+  # out <- c(spec, spec2)
+  accuracy <- sum(pred == data[, "obs"]) / nrow(data)
+  names(accuracy) <- "new.accuracy"
+  accuracy
+}
+
+tune.control <- trainControl(method = "cv", 
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary)
+
+
+grid <- expand.grid(.mtry = c(round(sqrt(ncol(train))), 
+                              8, 10, 15),
+                    .splitrule = "gini",
+                    .min.node.size = c(5, 10, 20))
+
+
+rf.tuning.500 <- train(did.exceed ~ ., 
+                       data = train, 
+                       method = "ranger", 
+                       tuneGrid = grid, 
+                       num.trees = 500,
+                       trControl = tune.control,
+                       metric = "ROC")
+
+rf.tuning.500$results
+```
+
+```{r}
+  
+tune.control1 <- trainControl(method = "cv", 
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE)
+
+rf.tuning.5001 <- train(did.exceed ~ ., 
+                       data = train, 
+                       method = "ranger", 
+                       tuneGrid = grid, 
+                       num.trees = 500,
+                       trControl = tune.control1)
+
+rf.tuning.5001$results
+```
+
+```{r}
+del <- threshold.test.results[[3]]
+del$pred
+```
+
+
+```{r}
+sum(pm10.averages$pm10.ave > 60, na.rm = TRUE) / nrow(pm10.averages)
+```
+
+```{r}
+1 - 0.144
+```
+
+```{r}
+library(tree)
+
+treefit <- tree(as.factor(did.exceed) ~ ., data = train, split = "gini" )
+summary(treefit)
+
+# prune tree; Run these next two lines a few times, to get a feel for best size
+cv.treeall <- cv.tree(treefit, FUN = prune.misclass)
+
+cv.treeall
+plot(cv.treeall)  ## 3 or 4 usually seems best
+prune.all<-prune.misclass(treefit, best = 8)
+
+summary(prune.all) # 3 node: 0.094 = 123/1302
+plot(prune.all)
+text(prune.all)
+
+# re-train again, using only variables in pruned tree 
+vars<-unique(as.character(prune.all$frame[,1]))
+vars<-vars[-which(vars=="<leaf>")]
+dd<-train[,c("did.exceed", vars)]
+dd<-dd[complete.cases(dd),]
+
+tree.all4<-tree(as.factor(did.exceed) ~ . , data = dd, split="gini")
+tree.all4
+summary(tree.all4) # misclass :0.07522 = 102 / 1356
+plot(tree.all4)
+text(tree.all4)
+summary(dd$exceed[dd$year < 2015]) # NULL error: 0.218
+```
+
+
+
+
+
+
+
+
+
+
+
