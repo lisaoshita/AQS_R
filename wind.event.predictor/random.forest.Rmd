@@ -1,6 +1,5 @@
 ---
 title: "Wind Event Predictor - Random forest"
-author: "Lisa Oshita"
 date: "October 3, 2018"
 output: html_document
 ---
@@ -17,11 +16,8 @@ library(dplyr)
 library(caret) 
 library(AUC)
 library(openair)
+library(tree) # for classification tree at bottom
 ```
-
-# Objective
-
-Build a random forest model to predict wind event days, based on meteorological data. A wind event is defined as any day when the 24-hour average PM10 concentration at CDF exceeds the state standard, i.e. 50 ug/m3. 
 
 ```{r load data}
 s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
@@ -57,26 +53,24 @@ cdf.master2 <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.u
 cdf.master2$date <- date(cdf.master2$date)
 ```
 
-```{r format data}
-# set up training set (train on years before 2015)
+```{r format training data, echo=TRUE, results='hide'}
+# train on years before 2015
 training <- s1.cdf.data %>%
   mutate(year = lubridate::year(date)) %>%
   mutate(date.only = lubridate::date(date)) %>%
   filter(year < 2015)
 
 # =========================================================================================
-# training data for CDF
+# finding wd and ws values at CDF and S1 that correspond with high pm10 concentrations
+# using openair package
+
+# ====
+# CDF 
+# ====
 cdf.training <- training %>%
   select(date, year, ws.cdf, wd.cdf, pm10.cdf)
 colnames(cdf.training) <- c("date", "year", "ws", "wd", "pm10")
 
-# training data for S1
-s1.training <- training %>%
-  select(date, year, wd.s1, ws.s1, pm10.cdf)
-colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
-
-
-# finding wd and ws values that correspond with high pm10 concentrations at CDF site
 cdf.clust <- polarCluster(cdf.training, 
                           pollutant = "pm10",
                           x = "ws",
@@ -88,7 +82,15 @@ cdf.clust$data %>%
   summarize(min_wd = min(wd),
             max_wd = max(wd),
             min_ws = min(ws),
-            max_ws = max(ws)) # criteria: wd between 288 - 320, ws between 9.2 - 20.7
+            max_ws = max(ws)) # CRITERIA: wd between 288 - 320, ws between 9.2 - 20.7
+
+
+# ===
+# S1 
+# ===
+s1.training <- training %>%
+  select(date, year, wd.s1, ws.s1, pm10.cdf)
+colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
 
 s1.clust <- polarCluster(s1.training,
                          pollutant = "pm10",
@@ -96,19 +98,19 @@ s1.clust <- polarCluster(s1.training,
                          wd = "wd",
                          n.clusters = 2)
 
-# finding wd and ws values that correspond with high pm10 concentrations at CDF site
 s1.clust$data %>%
   filter(cluster == 2) %>%
   summarize(min_wd = min(wd),
             max_wd = max(wd),
             min_ws = min(ws),
-            max_ws = max(ws)) # criteria: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
+            max_ws = max(ws)) # CRITERIA: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
 
 # =========================================================================================
-# creating variables indicating if wd or ws falls within these ranges 
-# number of times per day that the ws and wd fell within the range of high pm10 at S1 and cdf
-# maximum ws and wd per day
-# hour that ws and wd were at maximum
+
+# WD and WS variable set up 
+# - creating variables indicating if wd or ws fall within the ranges found above
+# - maximum ws and wd per day for both S1 and CDF
+# - hour of the day that WS and WD were at a maximum
 train1 <- training %>%
   group_by(date.only) %>%
   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
@@ -129,7 +131,8 @@ train1 <- training %>%
   mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
 
 # =========================================================================================
-# adding pm10 avg 24 hr concentration variable
+
+# computing pm10 avg 24 hr concentration
 pm10.averages <- training %>%
   group_by(date.only) %>%
   summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
@@ -148,21 +151,23 @@ train1 <- train1 %>%
          hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
 
+# =========================================================================================
 
 # examining missing data w/ Missingness map 
 Amelia::missmap(train1) # only 3% of the training data is missing - ok to omit these rows
 train1 <- na.omit(train1) 
 
-# need 2015 - 2017 for cdf.master to set up test data
+train1$did.exceed <- as.factor(train1$did.exceed)
 ```
 
-```{r}
-# setting up test data - 2015+
+```{r format test data, echo=TRUE, results='hide'}
+# test on years after 2015
 testing <- s1.cdf.data %>%
   mutate(year = lubridate::year(date)) %>%
   mutate(date.only = lubridate::date(date)) %>%
   filter(year >= 2015)
 
+# creating variables
 test <- testing %>%
   group_by(date.only) %>%
   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
@@ -184,6 +189,7 @@ test <- testing %>%
 
 colnames(test)[1] <- "date"
 
+# computing 24 hour average pm10 concentration
 pm10.averages.test <- testing %>%
   group_by(date.only) %>%
   summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
@@ -200,8 +206,11 @@ test <- test %>%
          hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
 
+# assess rows with missing data
 Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
 test <- na.omit(test) 
+
+test$did.exceed <- as.factor(test$did.exceed)
 ```
 
 # Random Forest parameter tuning
@@ -222,37 +231,37 @@ set.seed(1)
 # tuning on 500 trees
 start.tune.500 <- Sys.time()
 rf.tuning.500 <- train(did.exceed ~ ., 
-                   data = train1, 
-                   method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
-                   tuneGrid = grid, 
-                   num.trees = 500,
-                   trControl = tune.control,
-                   importance = "impurity",
-                   metric = "ROC")
+                       data = train1, 
+                       method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
+                       tuneGrid = grid, 
+                       num.trees = 500,
+                       trControl = tune.control,
+                       importance = "impurity",
+                       metric = "ROC")
 end.tune.500 <- Sys.time() # 19 seconds
 
 # tuning on 1000 trees
 start.tune.1000 <- Sys.time()
 rf.tuning.1000 <- train(did.exceed ~ ., 
-                   data = train1, 
-                   method = "ranger", 
-                   tuneGrid = grid, 
-                   num.trees = 1000,
-                   trControl = tune.control,
-                   importance = "impurity",
-                   metric = "ROC")
+                        data = train1, 
+                        method = "ranger", 
+                        tuneGrid = grid, 
+                        num.trees = 1000,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
 end.tune.1000 <- Sys.time() # 1.40 minutes
 
 # tuning on 1500 trees
 start.tune.1500 <- Sys.time()
 rf.tuning.1500 <- train(did.exceed ~ ., 
-                   data = train1, 
-                   method = "ranger",
-                   tuneGrid = grid, 
-                   num.trees = 1500,
-                   trControl = tune.control,
-                   importance = "impurity",
-                   metric = "ROC")
+                        data = train1, 
+                        method = "ranger",
+                        tuneGrid = grid, 
+                        num.trees = 1500,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
 end.tune.1500 <- Sys.time() # 1.65 minutes
 
 
@@ -286,7 +295,7 @@ final.control <- trainControl(method = "none",
 set.seed(1)
 start.fit <- Sys.time()
 rf.fit <- train(did.exceed ~ .,
-                data = train,
+                data = train1,
                 method = "ranger",
                 tuneGrid = final.grid,
                 trControl = final.control,
@@ -305,8 +314,7 @@ rf.preds <- rf.preds %>%
 # classification accuracy
 mean(rf.preds$actual == rf.preds$prediction) # 0.9193382 accuracy
 
-library(AUC)
-# ROC, AUC
+# ROC/AUC
 roc.metric <- roc(predictions = rf.preds$yes,
                   labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
 auc.metric <- auc(roc.metric)
@@ -316,7 +324,6 @@ plot(roc.metric, main = paste("AUC:", auc.metric))
 # specificity: true negative rate - ability of the model to correctly identify non-wind event days
 
 # assessing variable importance
-# this plot shows
 plot(varImp(rf.fit))
 varImp(rf.fit)
 
@@ -325,175 +332,142 @@ table(rf.preds$prediction, rf.preds$actual)
 # recall = 138 / (62 + 138) = 0.69 (out of all true observations, percentage of those that are being classified correctly)
 ```
 
-
-# Predicting 24 hour pm10 concentration (not binary classification)
+# Predicting 24 hour pm10 concentration (not classification)
 
 ```{r}
-train2 <- training %>%
-  group_by(date.only) %>%
-  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
-            max.wd.cdf = max(wd.cdf, na.rm = TRUE),
-            max.ws.s1 = max(ws.s1, na.rm = TRUE),
-            max.wd.s1 = max(wd.s1, na.rm = TRUE),
-            hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
-            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
-            hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
-            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
-            ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
-            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
-            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
-            ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
-  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
-  mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
-  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
-  mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
-
-
-# adding pm10 variable
-pm10.averages2 <- training %>%
-  mutate(date.only = lubridate::date(date)) %>%
-  group_by(date.only) %>%
-  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE))
-
-colnames(train2)[1] <- "date"
-train2$pm10.ave = pm10.averages$pm10.ave
-
-# merge train1 with other columns in cdf.master
-train2 <- train2 %>%
-  left_join(cdf.master, by = "date") %>%
-  mutate(month = month(date)) %>%
-  mutate(day.of.month = day(date)) %>%
-  select(pm10.ave, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
-         ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
-         hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
-         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
-
-nrow(train2) - nrow(na.omit(train2)) # removing 226 rows
-train2 <- na.omit(train2)
-
-
-grid2 <- expand.grid(.mtry = c(round(sqrt(ncol(train2))), 
-                              8, 10, 15),
-                    .splitrule = "variance",
-                    .min.node.size = c(5, 10, 20))
-
-tune.control2 <- trainControl(method = "cv", 
-                             number = 5,
-                             verboseIter = TRUE,
-                             savePredictions = TRUE)
-
-set.seed(1)
-# tuning on 500 trees
-start.tune.500.2 <- Sys.time()
-rf.tuning.500.2 <- train(pm10.ave ~ ., 
-                   data = train2, 
-                   method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
-                   tuneGrid = grid2, 
-                   num.trees = 500,
-                   trControl = tune.control2,
-                   importance = "impurity")
-end.tune.500.2 <- Sys.time() # 19 seconds
-
-# tuning on 1000 trees
-start.tune.1000.2 <- Sys.time()
-rf.tuning.1000.2 <- train(pm10.ave ~ ., 
-                   data = train2, 
-                   method = "ranger", 
-                   tuneGrid = grid2, 
-                   num.trees = 1000,
-                   trControl = tune.control2,
-                   importance = "impurity")
-end.tune.1000.2 <- Sys.time() # 1.40 minutes
-
-# tuning on 1500 trees
-start.tune.1500.2 <- Sys.time()
-rf.tuning.1500.2 <- train(pm10.ave ~ ., 
-                   data = train2, 
-                   method = "ranger",
-                   tuneGrid = grid2, 
-                   num.trees = 1500,
-                   trControl = tune.control2,
-                   importance = "impurity")
-end.tune.1500.2 <- Sys.time() # 1.65 minutes
-
-rf.tuning.500.2$bestTune # mtry = 8, min.node.size = 5 RMSE: 12.16776  r2: 0.8233791  MAE: 8.976453 ****
-rf.tuning.1000.2$bestTune # mtry = 10, min.node.size = 5 RMSE: 12.07823  r2: 0.8215156  MAE: 8.931860
-rf.tuning.1500.2$bestTune # mtry = 8, min.node.size = 5 RMSE: 11.95274 r2: 0.8239232  MAE: 8.873622
-
-rf.tuning.500.2
-
-
-# new metric
-# if the difference between prediction and actual concentration is > x 
-# then classify as incorrect ? 
-# this metric wouldn't rely on the probability threshold - would depend on how close the predictino was to the actual value
-
-# grabbing predictions
-
-preds <- rf.tuning.500.2$pred %>%
-  filter(mtry == 8) %>%
-  filter(min.node.size == 5) %>%
-  mutate(residual = pred - obs)
-
-
-
-ggplot(preds, aes(x = residual)) +
-  geom_histogram()
-
-sum(abs(preds$residual) > 15) / nrow(preds) # 17% of predictions have residuals greater than 15
-
+# # setting up the data
+# train2 <- training %>%
+#   group_by(date.only) %>%
+#   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+#             max.wd.cdf = max(wd.cdf, na.rm = TRUE),
+#             max.ws.s1 = max(ws.s1, na.rm = TRUE),
+#             max.wd.s1 = max(wd.s1, na.rm = TRUE),
+#             hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
+#             hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+#             hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
+#             hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+#             ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
+#             wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
+#             wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
+#             ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
+#   mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+#   mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
+#   mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
+#   mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
+# 
+# colnames(train2)[1] <- "date"
+# 
+# # merge train1 with other columns in cdf.master
+# train2 <- train2 %>%
+#   mutate(pm10.ave = pm10.averages$pm10.ave) %>%
+#   left_join(cdf.master, by = "date") %>%
+#   mutate(month = month(date)) %>%
+#   mutate(day.of.month = day(date)) %>%
+#   select(pm10.ave, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+#          ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+#          hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
+#          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+# 
+# train2 <- na.omit(train2) 
+# 
+# # =============================================================================================
+# 
+# grid2 <- expand.grid(.mtry = c(round(sqrt(ncol(train2))), 
+#                                8, 10, 15),
+#                      .splitrule = "variance",
+#                      .min.node.size = c(5, 10, 20))
+# 
+# tune.control2 <- trainControl(method = "cv", 
+#                              number = 5,
+#                              verboseIter = TRUE,
+#                              savePredictions = TRUE)
+# 
+# set.seed(1)
+# # tuning on 500 trees
+# rf.tuning.500.2 <- train(pm10.ave ~ ., 
+#                          data = train2, 
+#                          method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
+#                          tuneGrid = grid2, 
+#                          num.trees = 500,
+#                          trControl = tune.control2,
+#                          importance = "impurity")
+# 
+# # tuning on 1000 trees
+# rf.tuning.1000.2 <- train(pm10.ave ~ ., 
+#                           data = train2, 
+#                           method = "ranger", 
+#                           tuneGrid = grid2, 
+#                           num.trees = 1000,
+#                           trControl = tune.control2,
+#                           importance = "impurity")
+# 
+# # tuning on 1500 trees
+# rf.tuning.1500.2 <- train(pm10.ave ~ ., 
+#                           data = train2, 
+#                           method = "ranger",
+#                           tuneGrid = grid2, 
+#                           num.trees = 1500,
+#                           trControl = tune.control2,
+#                           importance = "impurity")
+# 
+# rf.tuning.500.2$bestTune # mtry = 8, min.node.size = 5 RMSE: 12.16776  r2: 0.8233791  MAE: 8.976453 ****
+# rf.tuning.1000.2$bestTune # mtry = 10, min.node.size = 5 RMSE: 12.07823  r2: 0.8215156  MAE: 8.931860
+# rf.tuning.1500.2$bestTune # mtry = 8, min.node.size = 5 RMSE: 11.95274 r2: 0.8239232  MAE: 8.873622
+# 
+# # =============================================================================================
+# 
+# # defining new metric:
+# # if the difference between prediction and actual concentration is > x, classify as incorrect ? 
+# # metric won't rely on the probability threshold - would depend on how close prediction is to actual value
+# 
+# preds <- rf.tuning.500.2$pred %>%
+#   filter(mtry == 8) %>%
+#   filter(min.node.size == 5) %>%
+#   mutate(residual = pred - obs)
+# 
+# ggplot(preds, aes(x = residual)) +
+#   geom_histogram()
+# 
+# sum(abs(preds$residual) > 15) / nrow(preds) # 17% of predictions have residuals greater than 15
 ```
 
-
-
-# comparing random forest results to regular classification tree results
+# Comparing random forest to regular classification tree
 
 ```{r}
-train <- train %>% mutate(did.exceed = as.factor(did.exceed))
-
-library(tree)
-
-treefit <- tree(did.exceed ~ ., data = train, split = "gini" )
+treefit <- tree(did.exceed ~ ., data = train1, split = "gini" )
 summary(treefit)
 
+# CV to determine optimal size of tree
 cv.treefit <- cv.tree(treefit, FUN = prune.misclass)
 cv.treefit
 plot(cv.treefit) # size = 6 or 7 did best
-
-
 
 pruned.tree <- prune.misclass(treefit, best = 7)
 summary(pruned.tree) #  0.09636 = 119 / 1235 
 plot(pruned.tree)
 text(pruned.tree)
 
-del <- pruned.tree$frame
-
 # re-train again, using only variables in pruned tree 
 vars <- unique(as.character(pruned.tree$frame[ , 1]))
 vars <- vars[-which(vars == "<leaf>")]
-new.train <- train[ , c("did.exceed", vars)]
-
+new.train <- train1[ , c("did.exceed", vars)]
 
 new.tree <- tree(did.exceed ~ ., data = new.train, split = "gini")
 summary(new.tree) #  0.08259 = 102 / 1235
 
 # predict on test data 
-tree.preds <- predict(new.tree, newdata = test) %>% as.data.frame()
-
-
-tree.preds <- tree.preds %>%
+tree.preds <- predict(new.tree, newdata = test) %>% 
+  as.data.frame() %>%
   mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
   mutate(actual = test$did.exceed)
 
 # classification accuracy
-mean(tree.preds$actual == tree.preds$prediction) # 0.8893485 accuracy
+mean(tree.preds$actual == tree.preds$prediction) 
 
-# ROC, AUC
+# ROC/AUC
 roc.metric.tree <- roc(predictions = tree.preds$yes,
                        labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
 auc.metric.tree <- auc(roc.metric.tree)
-
 plot(roc.metric.tree, main = paste("AUC:", auc.metric.tree))
 
 # confusion matrix
@@ -503,6 +477,24 @@ table(tree.preds$prediction, tree.preds$actual)
 ```
 
 
+```{r}
+# COMPARISON 
+# ==========================
+# classification accuracies:
+# ==========================
+# tree
+mean(tree.preds$actual == tree.preds$prediction) # 0.8893485
+# random forest
+mean(rf.preds$actual == rf.preds$prediction)
+
+# ========
+# ROC/AUC
+# ========
+# tree
+plot(roc.metric.tree, main = paste("AUC:", auc.metric.tree))
+# random forest
+plot(roc.metric, main = paste("AUC:", auc.metric))
+```
 
 
 

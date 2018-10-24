@@ -20,71 +20,57 @@ library(openair)
 library(xgboost)
 ```
 
-# Objective
-
-Build an xgboost model to predict wind event days, based on meteorological data. A wind event is defined as any day when the 24-hour average PM10 concentration at CDF exceeds the state standard, i.e. 50 ug/m3. 
-
 ```{r load data}
 s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
-                        col_types = list(date = "c",
-                                         ws.cdf = "n",
-                                         wd.cdf = "n",
-                                         pm10.cdf = "n",
-                                         pm10.oso = "n",
-                                         wd.s1 = "n",
-                                         ws.s1 = "n",
-                                         year = "n")) # contains data from 2011 - 2017
+                        col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
+                                         pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
+                                         ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
 
 s1.cdf.data <- s1.cdf.data %>%
   mutate(date = parse_date_time(date, "Ymd HMS"))
 
+# contains cdf and S1 data up to 2014
 cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv",
-                       col_types = list(date = "c",
-                                        ws = "n",
-                                        wd = "n",
-                                        pm25 = "n",
-                                        pm10 = "n",
-                                        u = "n",
-                                        v = "n", 
-                                        year = "n",
-                                        precip = "n",
-                                        s.rad = "n",
-                                        a.temp = "n",
-                                        rh = "n",
-                                        dp = "n",
-                                        s.temp = "n",
-                                        height = "n",
-                                        temp850 = "n",
-                                        ws.max = "n",
-                                        wd.max = "n",
-                                        u.max = "n",
-                                        v.max = "n",
-                                        time = "n",
-                                        dow = "n",
-                                        u.s1 = "n",
-                                        v.s1 = "n",
-                                        u.max.s1 = "n",
-                                        v.max.s1 = "n"))
+                       col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
+                                        pm10 = "n", u = "n", v = "n", year = "n", 
+                                        precip = "n", s.rad = "n", a.temp = "n",
+                                        rh = "n", dp = "n", s.temp = "n", height = "n",
+                                        temp850 = "n", ws.max = "n", wd.max = "n",
+                                        u.max = "n", v.max = "n", time = "n", dow = "n",
+                                        u.s1 = "n", v.s1 = "n", u.max.s1 = "n", v.max.s1 = "n"))
 
 cdf.master$date <- date(cdf.master$date)
+
+# contains cdf and S1 data from 2014 - 2017
+cdf.master2 <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.update.csv",
+                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
+                                        u = "n", v = "n", year = "n", precip = "n",
+                                        s.rad = "n", a.temp = "n", rh = "n", dp = "n",
+                                        s.temp = "n", height = "n", temp850 = "n", ws.max = "n",
+                                        wd.max = "n", u.max = "n", v.max = "n", time = "n",
+                                        dow = "n", u.s1 = "n", v.s1 = "n", u.max.s1 = "n",
+                                        v.max.s1 = "n"))
+
+cdf.master2$date <- date(cdf.master2$date)
 ```
 
-```{r format data}
-# set up training set (train on years before 2015)
+```{r format training data, echo=TRUE, results='hide'}
+# train on years before 2015
 training <- s1.cdf.data %>%
   mutate(year = lubridate::year(date)) %>%
   mutate(date.only = lubridate::date(date)) %>%
   filter(year < 2015)
 
-# training data for CDF
+# =========================================================================================
+# finding wd and ws values at CDF and S1 that correspond with high pm10 concentrations
+# using openair package
+
+# ====
+# CDF 
+# ====
 cdf.training <- training %>%
   select(date, year, ws.cdf, wd.cdf, pm10.cdf)
 colnames(cdf.training) <- c("date", "year", "ws", "wd", "pm10")
-
-# training data for S1
-s1.training <- training %>%
-  select(date, year, wd.s1, ws.s1, pm10.cdf)
-colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
 
 cdf.clust <- polarCluster(cdf.training, 
                           pollutant = "pm10",
@@ -97,7 +83,15 @@ cdf.clust$data %>%
   summarize(min_wd = min(wd),
             max_wd = max(wd),
             min_ws = min(ws),
-            max_ws = max(ws)) # criteria: wd between 288 - 320, ws between 9.2 - 20.7
+            max_ws = max(ws)) # CRITERIA: wd between 288 - 320, ws between 9.2 - 20.7
+
+
+# ===
+# S1 
+# ===
+s1.training <- training %>%
+  select(date, year, wd.s1, ws.s1, pm10.cdf)
+colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
 
 s1.clust <- polarCluster(s1.training,
                          pollutant = "pm10",
@@ -110,15 +104,14 @@ s1.clust$data %>%
   summarize(min_wd = min(wd),
             max_wd = max(wd),
             min_ws = min(ws),
-            max_ws = max(ws)) # criteria: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
+            max_ws = max(ws)) # CRITERIA: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
 
-# creating variables indicating if wd or ws falls within these ranges 
+# =========================================================================================
 
-# group by day, count the number of times wd + ws fall within the ranges, time of day that they do fall in the range?  (or maybe time of day that had the most extreme values) 
-
-# number of times per day that the ws and wd fell within the range of high pm10
-# maximum ws and wd 
-# hour that ws and wd were at maximum
+# WD and WS variable set up 
+# - creating variables indicating if wd or ws fall within the ranges found above
+# - maximum ws and wd per day for both S1 and CDF
+# - hour of the day that WS and WD were at a maximum
 train1 <- training %>%
   group_by(date.only) %>%
   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
@@ -138,19 +131,19 @@ train1 <- training %>%
   mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
   mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
 
+# =========================================================================================
 
-# adding pm10 variable
+# computing pm10 avg 24 hr concentration
 pm10.averages <- training %>%
-  mutate(date.only = lubridate::date(date)) %>%
   group_by(date.only) %>%
   summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
   mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
 
 colnames(train1)[1] <- "date"
-train1$did.exceed = pm10.averages$did.exceed
 
 # merge train1 with other columns in cdf.master
 train1 <- train1 %>%
+  mutate(did.exceed = pm10.averages$did.exceed) %>%
   left_join(cdf.master, by = "date") %>%
   mutate(month = month(date)) %>%
   mutate(day.of.month = day(date)) %>%
@@ -159,16 +152,72 @@ train1 <- train1 %>%
          hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
 
+# =========================================================================================
 
 # examining missing data w/ Missingness map 
 Amelia::missmap(train1) # only 3% of the training data is missing - ok to omit these rows
 train1 <- na.omit(train1) 
 
-# need 2015 - 2017 for cdf.master to set up test data
+train1$did.exceed <- as.factor(train1$did.exceed)
 ```
 
+```{r format test data, echo=TRUE, results='hide'}
+# test on years after 2015
+testing <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(year >= 2015)
+
+# creating variables
+test <- testing %>%
+  group_by(date.only) %>%
+  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.wd.cdf = max(wd.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            max.wd.s1 = max(wd.s1, na.rm = TRUE),
+            hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+            hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+            ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
+            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
+            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
+            ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
+  mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
+
+colnames(test)[1] <- "date"
+
+# computing 24 hour average pm10 concentration
+pm10.averages.test <- testing %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+
+# merge test with other columns in cdf.master2
+test <- test %>%
+  mutate(did.exceed = pm10.averages.test$did.exceed) %>%
+  left_join(cdf.master2, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+         ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+         hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+# assess rows with missing data
+Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
+test <- na.omit(test) 
+
+test$did.exceed <- as.factor(test$did.exceed)
+```
+
+# XGBoost tuning + testing
 
 ```{r}
+# parameter tuning
 xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
                              max_depth = c(3, 6, 10),
                              eta = 0.3,
@@ -182,23 +231,51 @@ tune.control <- trainControl(method = "cv",
                              verboseIter = TRUE,
                              classProbs = TRUE)
 
-
-
 start.tune.xgb <- Sys.time()
 xgb.tune <- train(did.exceed ~ ., 
                   data = train1, 
-                  method = "xgbTree", # fast implementation of a random forest: ranger, e1071 need to be installed
+                  method = "xgbTree",
                   tuneGrid = xgb.tune.grid,
                   trControl = tune.control,
                   importance = "impurity")
 end.tune.xgb <- Sys.time() # 19 seconds
 
-# max_depth = 6, colsample_bytree = 0.5, subsample = 0.8, nrounds = 500 --> accuracy: 0.9141694 
+plot(xgb.tune)
 
+# =======================================================================
+# fit to full training set
+xgb.final <- train(did.exceed ~ ., 
+                   data = train1, 
+                   method = "xgbTree",
+                   tuneGrid = xgb.tune$bestTune,
+                   trControl = trainControl(method = "none",
+                                            verboseIter = TRUE,
+                                            classProbs = TRUE,
+                                            summaryFunction = twoClassSummary),
+                   importance = "impurity",
+                   metric = "ROC")
+
+
+# =======================================================================
+# assess performance
+xgb.preds <- predict(xgb.final, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+
+# classification accuracy
+mean(xgb.preds$actual == xgb.preds$prediction) # 0.9193382 accuracy
+
+# ROC/AUC
+xgb.roc.metric <- roc(predictions = xgb.preds$yes,
+                      labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+xgb.auc.metric <- auc(xgb.roc.metric)
+
+plot(xgb.roc.metric, main = paste("AUC:", xgb.auc.metric))
 ```
 
 ```{r}
-xgb.tune.grid2 <- expand.grid(nrounds = c(1000, 1500),
+xgb.tune.grid2 <- expand.grid(nrounds = c(1000, 1500), # tuning with different nrounds + eta (shrinkage)
                              max_depth = c(3, 6, 10),
                              eta = 0.05,
                              gamma = 1,
@@ -215,160 +292,37 @@ xgb.tune2 <- train(did.exceed ~ .,
                   importance = "impurity")
 end.tune.xgb2 <- Sys.time() # 19 seconds
 
-# max_depth = 6, colsample_bytree = 0.8, subsample = 0.5, nrounds = 1000 --> accuracy: 0.9141826 
+plot(xgb.tune2)
 
-xgb.tune2 
+# =======================================================================
+# fit to full training set
+xgb.final1 <- train(did.exceed ~ ., 
+                    data = train1, 
+                    method = "xgbTree",
+                    tuneGrid = xgb.tune2$bestTune,
+                    trControl = trainControl(method = "none",
+                                            verboseIter = TRUE,
+                                            classProbs = TRUE,
+                                            summaryFunction = twoClassSummary),
+                    importance = "impurity",
+                    metric = "ROC")
 
-varImp(xgb.tune2)
-plot(varImp(xgb.tune2))
+
+# =======================================================================
+# assess performance
+xgb.preds2 <- predict(xgb.final1, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+
+# classification accuracy
+mean(xgb.preds2$actual == xgb.preds2$prediction) # 0.9193382 accuracy
+
+# ROC/AUC
+xgb.roc.metric2 <- roc(predictions = xgb.preds2$yes,
+                       labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+xgb.auc.metric2 <- auc(xgb.roc.metric2)
+
+plot(xgb.roc.metric2, main = paste("AUC:", xgb.auc.metric2))
 ```
-
-# PCA on wind direction + wind speed variables 
-
-```{r}
-# converting cdf data to wide format
-d <- s1.cdf.data[s1.cdf.data$hour == 0, c(9, 2, 3)]
-names(d) <- c("date", paste(names(d)[-1], 0, sep="."))
-for(i in 1:23){
-  dd <- s1.data[s1.data$hour==i, c(2, 3)]
-  names(dd) <- paste(names(dd), i, sep=".")
-  d <- cbind(d,dd)
-}
-
-# converting s1 data to wide format 
-d1 <- s1.cdf.data[s1.cdf.data$hour == 0, c(9, 6, 7)]
-names(d1) <- c("date", paste(names(d1)[-1], 0, sep = "."))
-for (i in 1:23) {
-  dd <- s1.data[s1.data$hour == i, c(6, 7)]
-  names(dd) <- paste(names(dd), i, sep = ".")
-  d1 <- cbind(d1, dd)
-}
-rm(dd, i)
-
-# joining d and d1
-full_df <- d %>%
-  left_join(d1, by = "date") %>%
-  filter(year(date) < 2015)
-
-# removing missing rows
-nrow(full_df) - nrow(na.omit(full_df)) # removing 146 features
-full_df <- na.omit(full_df) 
-
-full_df <- full_df %>% mutate_if(is.character, as.numeric)
-```
-
-```{r}
-# ------------------------
-# PCA on wd + ws for CDF
-# ------------------------
-wd.cdf.pca <- prcomp(x = (full_df %>% select(starts_with("wd.cdf"))), center = TRUE, scale = TRUE)
-plot(wd.cdf.pca, type = "l") # plot indicates how many principal components to retain
-# indicates that first 3 are sufficient - explain the most amount of variation within the data 
-
-ws.cdf.pca <- prcomp(x = (full_df %>% select(starts_with("ws.cdf"))), center = TRUE, scale = TRUE)
-plot(ws.cdf.pca, type =  "l") # use first 3
-
-# ------------------------
-# PCA on wd + ws for S1
-# ------------------------
-wd.s1.pca <- prcomp(x = (full_df %>% select(starts_with("wd.s1"))), center = TRUE, scale = TRUE)
-plot(wd.s1.pca, type = "l")
-
-ws.s1.pca <- prcomp(x = (full_df %>% select(starts_with("ws.s1"))), center = TRUE, scale = TRUE)
-plot(ws.s1.pca, type = "l")
-
-# use the first 3 PCs 
-
-
-new_train <- full_df %>% 
-  select(date) %>%
-  mutate(wd.cdf.pc1 = wd.cdf.pca$x[ , 1]) %>%
-  mutate(wd.cdf.pc2 = wd.cdf.pca$x[ , 2]) %>%
-  mutate(wd.cdf.pc3 = wd.cdf.pca$x[ , 3]) %>%
-  mutate(ws.cdf.pc1 = ws.cdf.pca$x[ , 1]) %>%
-  mutate(ws.cdf.pc2 = ws.cdf.pca$x[ , 2]) %>%
-  mutate(ws.cdf.pc3 = ws.cdf.pca$x[ , 3]) %>% 
-  mutate(ws.s1.pc1 = ws.s1.pca$x[ , 1]) %>%
-  mutate(ws.s1.pc2 = ws.s1.pca$x[ , 2]) %>%
-  mutate(ws.s1.pc3 = ws.s1.pca$x[ , 3]) %>%
-  mutate(wd.s1.pc1 = wd.s1.pca$x[ , 1]) %>%
-  mutate(wd.s1.pc2 = wd.s1.pca$x[ , 2]) %>%
-  mutate(wd.s1.pc3 = wd.s1.pca$x[ , 3])
-
-colnames(pm10.averages)[1] <- "date"
-
-new_train <- new_train %>%
-  left_join(pm10.averages, by = "date") %>%
-  left_join(cdf.master, by = "date") %>%
-  select(date, starts_with("wd.cdf"), 
-         starts_with("ws.cdf"), starts_with("wd.s1"), 
-         starts_with("ws.s1"), precip, s.rad, 
-         a.temp, rh, dp, s.temp, height, temp850, did.exceed) %>%
-  mutate(month = month(date)) %>%
-  mutate(day.of.month = day(date)) %>%
-  select(-date)
-
-new_train <- na.omit(new_train) # dropping 149 observations 
-```
-
-```{r}
-# parameter tuning on new train df 
-xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
-                             max_depth = c(3, 6, 10),
-                             eta = 0.3,
-                             gamma = 1,
-                             min_child_weight = 1, 
-                             colsample_bytree = c(0.5, 0.8),
-                             subsample = c(0.5, 0.8))
-
-tune.control <- trainControl(method = "cv", 
-                             number = 5,
-                             verboseIter = TRUE,
-                             classProbs = TRUE)
-
-
-
-start.tune.xgb3 <- Sys.time()
-xgb.tune3 <- train(did.exceed ~ ., 
-                  data = new_train, 
-                  method = "xgbTree", # fast implementation of a random forest: ranger, e1071 need to be installed
-                  tuneGrid = xgb.tune.grid,
-                  trControl = tune.control,
-                  importance = "impurity")
-end.tune.xgb3 <- Sys.time() # 19 seconds
-
-xgb.tune3
-varImp(xgb.tune3)
-
-# model doesn't perform differently/better than models previously explored
-```
-
-
-
-
-
-
-```{r}
-ggplot(pm10.averages, aes(x = pm10.ave)) +
-  geom_histogram()
-
-colnames(pm10.averages)
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

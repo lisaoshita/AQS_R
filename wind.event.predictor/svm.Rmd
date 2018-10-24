@@ -213,6 +213,8 @@ test <- na.omit(test)
 test$did.exceed <- as.factor(test$did.exceed)
 ```
 
+# Tuning SVM with polynomial kernel
+
 ```{r svm tuning}
 # tuning svm with polynomial kernel
 tune.out <- tune(svm, did.exceed ~ ., 
@@ -258,6 +260,8 @@ test.roc <- roc(predictions = test.preds,
 test.auc <- auc(test.roc)
 plot(test.roc, main = paste("AUC:", test.auc))
 ```
+
+# Tuning SVM with linear kernel
 
 ```{r}
 # tuning svm with linear kernel

@@ -1,6 +1,5 @@
 ---
 title: "Threshold testing"
-author: "Lisa Oshita"
 date: "October 19, 2018"
 output: html_document
 ---
@@ -11,8 +10,33 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Writing a function to test the pm10 concentration threshold - try 40, 50, 60 
 
-
 ```{r}
+# load and set up data
+s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
+                        col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
+                                         pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
+                                         ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
+
+s1.cdf.data <- s1.cdf.data %>%
+  mutate(date = parse_date_time(date, "Ymd HMS"))
+
+# contains cdf and S1 data up to 2014
+cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv",
+                       col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
+                                        pm10 = "n", u = "n", v = "n", year = "n", 
+                                        precip = "n", s.rad = "n", a.temp = "n",
+                                        rh = "n", dp = "n", s.temp = "n", height = "n",
+                                        temp850 = "n", ws.max = "n", wd.max = "n",
+                                        u.max = "n", v.max = "n", time = "n", dow = "n",
+                                        u.s1 = "n", v.s1 = "n", u.max.s1 = "n", v.max.s1 = "n"))
+
+cdf.master$date <- date(cdf.master$date)
+
+training <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(year < 2015)
+
 train1 <- training %>%
   group_by(date.only) %>%
   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
@@ -44,7 +68,64 @@ train1 <- train1 %>%
 pm10.averages <- training %>%
   group_by(date.only) %>%
   summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE))
+colnames(train1)
 
+train1 <- train1 %>%
+  select(ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+         ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+         hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+```
+
+```{r}
+# test on years after 2015
+testing <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(year >= 2015)
+
+# creating variables
+test <- testing %>%
+  group_by(date.only) %>%
+  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.wd.cdf = max(wd.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            max.wd.s1 = max(wd.s1, na.rm = TRUE),
+            hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+            hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+            ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
+            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
+            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
+            ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
+  mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
+
+colnames(test)[1] <- "date"
+
+# computing 24 hour average pm10 concentration
+pm10.averages.test <- testing %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE))
+
+# merge test with other columns in cdf.master2
+test <- test %>%
+  mutate(pm10.ave = pm10.averages.test$pm10.ave) %>%
+  left_join(cdf.master2, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(pm10.ave, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
+         ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+         hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+test <- na.omit(test)
+```
+
+```{r}
 # for parameter tuning
 grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))), 
                               8, 10, 15),
@@ -56,63 +137,54 @@ tune.control <- trainControl(method = "cv",
                              verboseIter = TRUE,
                              classProbs = TRUE)
 
-
 # function to test different pm10 thresholds
 test_threshold <- function(pm10.threshold) {
 
   pm10.averages <- pm10.averages %>%
     mutate(did.exceed = ifelse(pm10.ave >= pm10.threshold, "yes", "no"))
   
-  train <- train1 %>%
-    mutate(did.exceed = pm10.averages$did.exceed) %>%
-    select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
-           ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
-           hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
-           precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+  train1$did.exceed <- pm10.averages$did.exceed
   
-  train <- na.omit(train) # drop rows with missing values
-  
-  grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))), 
-                              8, 10, 15),
-                    .splitrule = "gini",
-                    .min.node.size = c(5, 10, 20))
+  train1 <- na.omit(train1) # drop rows with missing values
   
   results <- list()
+  
   for (i in 1:nrow(grid)) {
+    
     model <- train(did.exceed ~ ., 
-                  data = train, 
+                  data = train1, 
                   method = "ranger", 
                   tuneGrid = grid[i , ], 
                   num.trees = 500,
                   trControl = tune.control,
                   importance = "impurity")
-    preds <- predict(model, newdata = train, type = "prob")
+    
+    preds <- predict(model, newdata = train1, type = "prob")
+    
     preds <- preds %>%
-      mutate(prediction = ifelse(yes >= pr.threshold, "yes", "no")) %>%
-      mutate(actual = train$did.exceed)
+      mutate(prediction = ifelse(yes >= 0.5, "yes", "no")) %>%
+      mutate(actual = train1$did.exceed)
 
-    # classification accuracy
-    mean(rf.preds$actual == rf.preds$prediction) # 87% accuracy
+    # print classification accuracy
+    mean(preds$actual == rf.preds$prediction)
 
     # ROC, AUC
-    roc.metric <- roc(predictions = rf.preds$yes,
-                      labels = as.factor(ifelse(as.character(test.y) == "yes", 1, 0)))
+    roc.metric <- roc(predictions = preds$yes,
+                      labels = as.factor(ifelse(as.character(preds$actual) == "yes", 1, 0)))
     auc.metric <- auc(roc.metric)
     
   }
-  rf.tuning.500 <- train(did.exceed ~ ., 
-                         data = train, 
-                         method = "ranger", 
-                         tuneGrid = grid, 
-                         num.trees = 500,
-                         trControl = tune.control,
-                         importance = "impurity")
+  tune.out <- train(did.exceed ~ ., 
+                    data = train1, 
+                    method = "ranger", 
+                    tuneGrid = grid, 
+                    num.trees = 500,
+                    trControl = tune.control,
+                    importance = "impurity")
   
-  rf.tuning.500$bestTune
-  return(rf.tuning.500)
+  tune.out$bestTune
+  return(list(tune.out, train1)) # return df trained on for ROC/AUC calculation later
 }
-
-
 ```
 
 
@@ -121,133 +193,76 @@ threshold.test.results <- purrr::map(c(30, 50, 60), ~test_threshold(.))
 # Fitting mtry = 8, splitrule = gini, min.node.size = 10 on full training set
 # Fitting mtry = 6, splitrule = gini, min.node.size = 10 on full training set
 # Fitting mtry = 8, splitrule = gini, min.node.size = 5 on full training set
+str(threshold.test.results)
 
 
-  pm10.averages <- pm10.averages %>%
-    mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
-  
-  train <- train1 %>%
-    mutate(did.exceed = pm10.averages$did.exceed) %>%
-    select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
-           ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
-           hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
-           precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
-  
-  train <- na.omit(train) # drop rows with missing values
-  
+# test models on hold-out set
 
-  
-  blah <- predict(rf.tuning.500, newdata = train, type = "prob")
-  blah
-  
-  
+# =========================================================================
 
-  
-tune.control  
-# defining new metric
-# new.accuracy <- function(data, lev = NULL, model = NULL) {
-#   data <- data %>%
-#     mutate(prediction = ifelse(yes >= 0.6, "yes", "no"))
-#   new.accuracy <- sum(data$prediction == data$obs) / nrow(data)
-#   return(list(metric = "new.accuracy", value = new.accuracy))
-# }
+# model with pm10 concentration of 30 as classification threshold
+rf.30 <- threshold.test.results[[1]][[1]]
 
-customSummary <- function (data, lev = NULL, model = NULL){
-  # spec <- specificity(data[, "pred"], data[, "obs"], lev[2])
-  pred <- factor(ifelse(data[, "yes"] > 0.50, "yes", "no"))
-  # spec2 <- specificity(pred, data[, "obs"], "no")
-  # out <- c(spec, spec2)
-  accuracy <- sum(pred == data[, "obs"]) / nrow(data)
-  names(accuracy) <- "new.accuracy"
-  accuracy
-}
+rf.30.preds <- predict(rf.30, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = ifelse(test$pm10.ave > 30, "yes", "no"))
 
-tune.control <- trainControl(method = "cv", 
-                             number = 5,
-                             verboseIter = TRUE,
-                             classProbs = TRUE,
-                             summaryFunction = twoClassSummary)
+# classification accuracy
+mean(rf.30.preds$actual == rf.30.preds$prediction) # 0.8366081 accuracy
 
+# ROC/AUC
+roc.30.metric <- roc(predictions = rf.30.preds$yes,
+                     labels = as.factor(ifelse(test$pm10.ave > 30, 1, 0)))
+auc.30.metric <- auc(roc.30.metric)
+plot(roc.30.metric, main = paste("AUC:", auc.30.metric)) # 0.896
 
-grid <- expand.grid(.mtry = c(round(sqrt(ncol(train))), 
-                              8, 10, 15),
-                    .splitrule = "gini",
-                    .min.node.size = c(5, 10, 20))
+# =========================================================================
 
+# model with pm10 concentration of 50 as classification threshold
+rf.50 <- threshold.test.results[[2]][[1]]
 
-rf.tuning.500 <- train(did.exceed ~ ., 
-                       data = train, 
-                       method = "ranger", 
-                       tuneGrid = grid, 
-                       num.trees = 500,
-                       trControl = tune.control,
-                       metric = "ROC")
+rf.50.preds <- predict(rf.50, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = ifelse(test$pm10.ave > 50, "yes", "no"))
 
-rf.tuning.500$results
-```
+# classification accuracy
+mean(rf.50.preds$actual == rf.50.preds$prediction) # 0.9214064 accuracy
 
-```{r}
-  
-tune.control1 <- trainControl(method = "cv", 
-                             number = 5,
-                             verboseIter = TRUE,
-                             classProbs = TRUE)
+# ROC/AUC
+roc.50.metric <- roc(predictions = rf.50.preds$yes,
+                     labels = as.factor(ifelse(test$pm10.ave > 50, 1, 0)))
+auc.50.metric <- auc(roc.50.metric)
+plot(roc.50.metric, main = paste("AUC:", auc.50.metric)) # 0.953
 
-rf.tuning.5001 <- train(did.exceed ~ ., 
-                       data = train, 
-                       method = "ranger", 
-                       tuneGrid = grid, 
-                       num.trees = 500,
-                       trControl = tune.control1)
+# =========================================================================
 
-rf.tuning.5001$results
-```
+# model with pm10 concentration of 60 as classification threshold
+rf.60 <- threshold.test.results[[3]][[1]]
 
-```{r}
-del <- threshold.test.results[[3]]
-del$pred
+rf.60.preds <- predict(rf.60, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = ifelse(test$pm10.ave > 60, "yes", "no"))
+
+# classification accuracy
+mean(rf.60.preds$actual == rf.60.preds$prediction) # 0.9214064 accuracy
+
+# ROC/AUC
+roc.60.metric <- roc(predictions = rf.60.preds$yes,
+                     labels = as.factor(ifelse(test$pm10.ave > 60, 1, 0)))
+auc.60.metric <- auc(roc.60.metric)
+plot(roc.60.metric, main = paste("AUC:", auc.60.metric)) # 0.955
+
+# not much of a difference between models
+# also looked into different probability thresholds - did not result in worthwhile improvements
 ```
 
 
-```{r}
-sum(pm10.averages$pm10.ave > 60, na.rm = TRUE) / nrow(pm10.averages)
-```
-
-```{r}
-1 - 0.144
-```
-
-```{r}
-library(tree)
-
-treefit <- tree(as.factor(did.exceed) ~ ., data = train, split = "gini" )
-summary(treefit)
-
-cv.treefit <- cv.tree(treefit, FUN = prune.misclass)
-cv.treefit
-plot(cv.treefit) # size = 6 or 7 did best
 
 
 
-pruned.tree <- prune.misclass(treefit, best = 7)
-summary(pruned.tree) #  0.09636 = 119 / 1235 
-plot(pruned.tree)
-text(pruned.tree)
-
-del <- pruned.tree$frame
-
-# re-train again, using only variables in pruned tree 
-vars <- unique(as.character(pruned.tree$frame[ , 1]))
-vars <- vars[-which(vars == "<leaf>")]
-new.train <- train[ , c("did.exceed", vars)]
-
-
-new.tree <- tree(did.exceed ~ ., data = new.train, split = "gini")
-summary(new.tree) #  0.08259 = 102 / 1235
-
-
-
-```
 
 
 
