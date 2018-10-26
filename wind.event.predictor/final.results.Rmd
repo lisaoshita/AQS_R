@@ -11,16 +11,6 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# what to include
-
-* objective + basic overview of the goals of this project 
-* what packages need to be installed
-* what was initially done (classification trees)
-* include section for parameter tuning for each model 
-* final model comparisons
-* variable importance
-* take-aways - points for future work
-
 ```{r, warning=FALSE, message=FALSE}
 # load packages
 library(readr)
@@ -29,12 +19,12 @@ library(dplyr)
 library(caret)
 library(AUC)
 library(openair)
-library(tree) # for classification tree at bottom
+library(tree) # for decision tree at bottom
 library(xgboost)
 library(e1071) # for SVMs
 
 # load the workspace with tuning/model building results
-load("~/Desktop/repos/apcd_r/wind.event.predictor/final.workspace.RData")
+load("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/final.workspace.RData")
 ```
 
 # Overview
@@ -46,7 +36,7 @@ The objective of this project is to build a model to accurately predict wind eve
 * Random forest
 * XGBoosts (extreme Gradient Boosted classification trees)
 * Support vector machines (referred to as SVMs)
-* regular classification trees
+* regular decision trees
 
 #### General process
 
@@ -56,10 +46,11 @@ Note: all code was commented out to cut down on the time it takes to knit this d
 
 # Setting up the data
 
-This file uses data from S1 and CDF. Models were trained on data from 2011 - 2014 and tested on data from 2015 - 2017. The following code loads the data, partitions the data into training and test sets, and sets up variables. Missing values were assess with a missingness map from the Amelia package, before omitting all rows that contain missing values. 
+This file uses data from S1 and CDF. Models were trained on data from 2011 - 2014 and tested on data from 2015 - 2017. The following code loads the data, partitions the data into training and test sets, and sets up variables. Before omitting all rows that contain missing values, the pattern of missing values was assessed with a missingness map from the Amelia package.
 
 ```{r load data}
-# s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv", # read_csv is faster for larger files
+# # read_csv is faster for larger files
+# s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv", 
 #                         col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
 #                                          pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
 #                                          ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
@@ -145,21 +136,25 @@ This file uses data from S1 and CDF. Models were trained on data from 2011 - 201
 # # =========================================================================================
 # 
 # # WD and WS variable set up 
+# # - maximum WS & WD at CDF and S1
+# # - hour of the day that WS and WD were at maximum
+# # - number of times that WS and WD fell within the range corresponding to high pm10 averages
+#
 # train1 <- training %>%
 #   group_by(date.only) %>%
-#   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE), # maximum WS & WD at CDF and S1
+#   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE), 
 #             max.wd.cdf = max(wd.cdf, na.rm = TRUE),
 #             max.ws.s1 = max(ws.s1, na.rm = TRUE),
 #             max.wd.s1 = max(wd.s1, na.rm = TRUE),
-#             hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1), # hour of the day that WS and WD were at maximum
+#             hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1), 
 #             hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
 #             hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
 #             hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
-#             ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE), # number of times that WS and WD fell within the range corresponding to high pm10 averages
+#             ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE), 
 #             wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
 #             wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
 #             ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
-#   mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>% # changing "-Inf" values in max variables to NA
+#   mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
 #   mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
 #   mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
 #   mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
@@ -180,7 +175,7 @@ This file uses data from S1 and CDF. Models were trained on data from 2011 - 201
 #   left_join(cdf.master, by = "date") %>% 
 #   mutate(month = month(date)) %>% # create month and day.of.month variables
 #   mutate(day.of.month = day(date)) %>%
-#   select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, # retain only a subset of the variables for the model
+#   select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1,
 #          ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
 #          hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
 #          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
@@ -192,7 +187,7 @@ This file uses data from S1 and CDF. Models were trained on data from 2011 - 201
 # train1 <- na.omit(train1) 
 # 
 # train1$did.exceed <- as.factor(train1$did.exceed)
-
+# 
 # # ======== SET UP TEST DATA ===============================================================
 # # test on years after 2015
 # testing <- s1.cdf.data %>%
@@ -250,7 +245,7 @@ This file uses data from S1 and CDF. Models were trained on data from 2011 - 201
 
 #### Parameter tuning
 
-Tuning is performed with functions from the caret package. `tune.control` specifies how to perform the tuning process (in this file: 5-fold cross-validation) and sets other options (e.g. `verboseIter = FALSE` indicates that each iteration should not be printed to the console). `grid` contains all combinations of parameters to assess. The following paramters were tuned: 
+Tuning is performed with functions from the caret package. `tune.control` specifies how to perform the tuning process (in this file: 5-fold cross-validation) and sets other options (e.g. `verboseIter = FALSE` indicates that each iteration should not be printed to the console). `grid` contains all combinations of parameters to assess. The following parameters were tuned: 
 
 * `mtry` is the number of predictors to randomly sample at each split. The default for this parameter is the square root of the number of predictors. 
 * `splitrule` determines how splits will be decided. 
@@ -271,6 +266,8 @@ Tuning is performed with functions from the caret package. `tune.control` specif
 ```
 
 Tuning is performed with the `train()` function from the caret package. Since the number of trees to grow is not a parameter than can be tuned by including it in the grid, tuning was performed three times to explore different values of `num.trees`. The following are tuning results. 
+
+More details on parameter tuning with the train function can be found [here](http://topepo.github.io/caret/train-models-by-tag.html).
 
 ```{r}
 # set.seed(1)
@@ -322,12 +319,12 @@ plot(rf.tuning.1500)
 Importance of variables in the model can be assessed with: 
 
 ```{r}
-plot(varImp(rf.tuning.1000))
+plot(varImp(rf.tuning.1500))
 ```
 
 #### Fitting to the full training set
 
-The following fits the random forest with the optimal paramters found in the previous step, to the full training set and tests it on the held-out set.
+The following fits the random forest with the optimal parameters found in the previous step, to the full training set and tests it on the held-out set.
 
 ```{r}
 # ============= Set up parameters: 
@@ -350,7 +347,11 @@ The following fits the random forest with the optimal paramters found in the pre
 #                 num.trees = 1500,
 #                 importance = "impurity",
 #                 metric = "ROC")
-# 
+```
+
+#### Assessing performance
+
+```{r}
 # ============= Compute predictions: 
 # rf.preds <- predict(rf.fit, newdata = test, type = "prob")
 # 
@@ -377,14 +378,10 @@ plot(roc.metric, main = paste("Random Forest  -  AUC:", round(auc.metric, 4)))
 The following is a confusion matrix of the model's predictions, as well as calculated precision and recall. 
 
 ```{r}
-table(rf.preds$prediction, rf.preds$actual)
 # precision = 140 / (15 + 140) = 0.903 # out of all of the days that are being predicted as wind event days, 90.3% of them actually are wind event days
 # recall = 140 / (60 + 140) = 0.70 # out of all of the days that truly were wind event days, 70% of them were classified correctly
+table(rf.preds$prediction, rf.preds$actual)
 ```
-
-
-
-
 
 # XGBoosts
 
@@ -392,7 +389,7 @@ table(rf.preds$prediction, rf.preds$actual)
 
 XGBoost algorithms are a fairly new method of supervised learning that tend to perform consistently better than other models. It is a form of gradient boosting that introduces a different, more formal method of regularization to prevent overfitting---enabling it to outperform other models. Additionally, XGBoost algorithms are parallelizable, allowing it to fully utilize the power of computers, which effectively decreases computation time.
 
-The following tunes some of the XGBoost parameters. This [link](https://xgboost.readthedocs.io/en/latest/parameter.html#parameters-for-tree-booster) defines each of the parameters. 
+The following tunes some of the XGBoost parameters. This [link](https://xgboost.readthedocs.io/en/latest/parameter.html#parameters-for-tree-booster) provides details on each of the parameters.
 
 ```{r}
 # # parameter tuning
@@ -419,7 +416,7 @@ The following tunes some of the XGBoost parameters. This [link](https://xgboost.
 #                   metric = "ROC")
 ```
 
-The following display tuning results and variable importance. Parameters that lead to the best performance (with an ROC of 0.943) were: 
+The following displays tuning results and variable importance. Parameters that lead to the best performance (with an ROC of 0.943) were: 
 
 ```{r}
 knitr::kable(xgb.tune$bestTune)
@@ -434,7 +431,6 @@ plot(varImp(xgb.tune))
 #### Fitting to the full training set
 
 ```{r}
-# =======================================================================
 # # fit to full training set
 # xgb.final <- train(did.exceed ~ .,
 #                    data = train1,
@@ -446,9 +442,11 @@ plot(varImp(xgb.tune))
 #                                             summaryFunction = twoClassSummary),
 #                    importance = "impurity",
 #                    metric = "ROC")
+```
 
+#### Assessing performance
 
-# =======================================================================
+```{r}
 # # assess performance
 # xgb.preds <- predict(xgb.final, newdata = test, type = "prob") %>%
 #   as.data.frame() %>%
@@ -478,13 +476,13 @@ table(xgb.preds$prediction, xgb.preds$actual)
 
 In the xgboost.Rmd file, I performed another round of parameter tuning with higher values of `nrounds` and a smaller value of `eta`. `eta` controls the learning rate (models that learn slower tend to perform well). A slower learning rate must be countered with higher values of `nrounds`. However, results from these models did not differ from the results above so they are not discussed here. 
 
-# Support vector machine
+# Support vector machines
 
-Support vector machines work by using hyperplanes to partition the data. So they work well when the data is separable. Since we saw that days with high PM10 concentrations could be clustered according to wind direction and wind speed (using the openair package), I thought SVMs with a polynomial kernel might perform well. (A polynomial kernel determines the way that the hyperplane separates the data - instead of using a linear, straight hyperplane, a polynomial kernel allows for that hyperplane to be curved - other options are radial kernels).
+Support vector machines use hyperplanes to partition the data. So they work well when the data is separable. Since we saw that days with high PM10 concentrations could be clustered according to wind direction and wind speed (using the openair package), I thought SVMs with a polynomial kernel might perform well. [This](https://blog.statsbot.co/support-vector-machines-tutorial-c1618e635e93) is a good source for more information on SVMs and the cost parameter tuned here. 
 
 #### Parameter tuning
 
-Parameter tuning was performed with the `tune()` function from the e1071 package (tuning with the `train()` function from the caret package consistently returned errors). [This](https://blog.statsbot.co/support-vector-machines-tutorial-c1618e635e93) is a good source for more information on the cost parameter tuned here. 
+Parameter tuning was performed with the `tune()` function from the e1071 package (tuning with the `train()` function from the caret package consistently returned errors). 
 
 ```{r}
 # # tuning svm with polynomial kernel
@@ -493,52 +491,139 @@ Parameter tuning was performed with the `tune()` function from the e1071 package
 #                  kernel = "polynomial",
 #                  degree = 2,
 #                  ranges = list(cost = c(.01, .1, .5, 1, 5, 7, 10)))
-
 summary(tune.out)
 ```
 
+The SVM that performed the best, with an error rate of 0.104 (classification accuracy of 89.6%), used a cost parameter of 5. 
 
+#### Fitting to the full training set
 
 ```{r}
-
-
 # # svm with tuned parameter on full training set
 # svm.tuned <- svm(did.exceed ~ ., 
 #                  data = train1,
 #                  kernel = "polynomial",
 #                  degree = 2,
-#                  cost = 5)
+#                  cost = 5) # tuned cost parameter
+```
 
+#### Assessing performance
+
+```{r}
 # ------------------------------------------
 # assessing training error + ROC/AUC metric
 # ------------------------------------------
-train.preds <- predict(svm.tuned, newdata = train1)
-
-# classification accuracy
-mean(train.preds == train1$did.exceed) # 0.9238866
-
-# ROC/AUC 
-train.roc <- roc(predictions = train.preds,
-                 labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
-train.auc <- auc(train.roc)
-plot(train.roc, main = paste("AUC:", train.auc))
-
-# --------------------------------------
-# assessing test error + ROC/AUC metric
-# --------------------------------------
-test.preds <- predict(svm.tuned, newdata = test)
-
-# classification accuracy
-mean(test.preds == test$did.exceed) # 0.8945191
-
-# ROC/AUC
-test.roc <- roc(predictions = test.preds,
-                labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
-test.auc <- auc(test.roc)
-plot(test.roc, main = paste("AUC:", test.auc))
+# train.preds <- predict(svm.tuned, newdata = train1)
+# 
+# # classification accuracy
+# mean(train.preds == train1$did.exceed) # 0.9238866
+# 
+# # ROC/AUC 
+# train.roc <- roc(predictions = train.preds,
+#                  labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
+# train.auc <- auc(train.roc)
 ```
 
+The SVM achieved a training classification accuracy of `r round(mean(train.preds == train1$did.exceed)*100, 3)`%. Training ROC/AUC is: 
 
+```{r}
+plot(train.roc, main = paste("SVM, training metric  -  AUC:", round(train.auc, 3)))
+```
 
+```{r}
+# # --------------------------------------
+# # assessing test error + ROC/AUC metric
+# # --------------------------------------
+# test.preds <- predict(svm.tuned, newdata = test)
+# 
+# # classification accuracy
+# mean(test.preds == test$did.exceed) # 0.8945191
+# 
+# # ROC/AUC
+# test.roc <- roc(predictions = test.preds,
+#                 labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+# test.auc <- auc(test.roc)
+```
 
+Tested on the held-out set, the SVM achieved a classification accuracy of `r round(mean(test.preds == test$did.exceed)*100, 3)`%. ROC/AUC on the test set was: 
+
+```{r}
+plot(test.roc, main = paste("SVM, test metric  -  AUC:", round(test.auc, 3)))
+```
+
+There is some evidence that this SVM was overfit to the training data - as indicated by the model's poor performance on the test set. So, in the svm.Rmd file, I explored the possibility of an SVM with a linear kernel, instead of a polynomial kernel, but achieved similar results. 
+
+# Decision tree
+
+The following fits a decision tree to the training data following a similar process used for the first decision tree [here](https://github.com/sloapcdkt/2016aqrptR/blob/master/appendix.R). 
+
+```{r}
+# treefit <- tree(did.exceed ~ ., data = train1, split = "gini" )
+# summary(treefit)
+#
+# # CV to determine optimal size of tree
+# cv.treefit <- cv.tree(treefit, FUN = prune.misclass)
+# cv.treefit
+# plot(cv.treefit) # size = 6 or 7 did best
+#
+# pruned.tree <- prune.misclass(treefit, best = 7)
+# summary(pruned.tree) #  0.09636 = 119 / 1235 
+# plot(pruned.tree)
+# text(pruned.tree)
+#
+# # re-train again, using only variables in pruned tree
+# vars <- unique(as.character(pruned.tree$frame[ , 1]))
+# vars <- vars[-which(vars == "<leaf>")]
+# new.train <- train1[ , c("did.exceed", vars)]
+#
+# new.tree <- tree(did.exceed ~ ., data = new.train, split = "gini")
+# summary(new.tree) #  0.08259 = 102 / 1235
+# 
+# # predict on test data 
+# tree.preds <- predict(new.tree, newdata = test) %>% 
+#   as.data.frame() %>%
+#   mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+#   mutate(actual = test$did.exceed)
+# 
+# # classification accuracy
+# mean(tree.preds$actual == tree.preds$prediction) 
+# 
+# # ROC/AUC
+# roc.metric.tree <- roc(predictions = tree.preds$yes,
+#                        labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+# auc.metric.tree <- auc(roc.metric.tree)
+```
+
+The decision tree, pruned back to size 7, achieved a test set classification accuracy of `r round(mean(tree.preds$actual == tree.preds$prediction)*100, 3)`%. Test ROC/AUC for this model is:
+
+```{r}
+plot(roc.metric.tree, main = paste("Decision tree  -  AUC:", round(auc.metric.tree, 3)))
+```
+
+```{r}
+# confusion matrix
+# precision = 127 / (34 + 127) = 0.789 (out of all that are being classified as high pm10 days - 78.9% are actually high pm10 days)
+# recall = 127 / (73 + 127) = 0.635 (out of all days that are actually high pm10, 63.5% are actually being classified as such) 
+table(tree.preds$prediction, tree.preds$actual)
+```
+
+# Comparing models
+
+Based on ROC/AUC alone, the random forest performed the best. 
+
+```{r}
+par(mfrow = c(2, 2))
+plot(roc.metric, main = paste("Random Forest  -  AUC:", round(auc.metric, 4)))
+plot(xgb.roc.metric, main = paste("XGBoost  -  AUC:", round(xgb.auc.metric,4)))
+plot(test.roc, main = paste("SVM, test metric  -  AUC:", round(test.auc, 4)))
+plot(roc.metric.tree, main = paste("Decision tree  -  AUC:", round(auc.metric.tree, 4)))
+```
+
+# Notes
+
+Since performance for every model was mostly similar (with the exception of the SVM) and further tuning didn't seem to lead to much improvement, I think a next possible step is to think of more variables to include. For both the random forest and XGBoost algorithms, the variables that were the most important regarded wind direction and wind speed at S1. So, as a point for further work, I think including more information/variables from S1 may help with model accuracy.
+
+```{r}
+plot(varImp(rf.tuning.1500))
+```
 
