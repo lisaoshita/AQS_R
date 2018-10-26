@@ -315,7 +315,7 @@ xgb.preds2 <- predict(xgb.final1, newdata = test, type = "prob") %>%
   mutate(actual = test$did.exceed)
 
 # classification accuracy
-mean(xgb.preds2$actual == xgb.preds2$prediction) # 0.9193382 accuracy
+mean(xgb.preds2$actual == xgb.preds2$prediction)
 
 # ROC/AUC
 xgb.roc.metric2 <- roc(predictions = xgb.preds2$yes,
