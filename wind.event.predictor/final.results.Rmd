@@ -484,7 +484,7 @@ Support vector machines work by using hyperplanes to partition the data. So they
 
 #### Parameter tuning
 
-Parameter tuning was performed with the `tune()` function from the e1071 package (tuning with the `train()` function from the caret package consistently returned errors).
+Parameter tuning was performed with the `tune()` function from the e1071 package (tuning with the `train()` function from the caret package consistently returned errors). [This](https://blog.statsbot.co/support-vector-machines-tutorial-c1618e635e93) is a good source for more information on the cost parameter tuned here. 
 
 ```{r}
 # # tuning svm with polynomial kernel
@@ -496,6 +496,8 @@ Parameter tuning was performed with the `tune()` function from the e1071 package
 
 summary(tune.out)
 ```
+
+
 
 ```{r}
 
