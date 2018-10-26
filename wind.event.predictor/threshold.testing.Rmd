@@ -8,7 +8,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Writing a function to test the pm10 concentration threshold - try 40, 50, 60 
+# Objective
+
+This file determines if there is a different pm10 concentration threshold that may capture "wind event" days better/result in better model performance. It also looks at the possibility of a different probability threshold (if the probability for classification should be different from 0.5). 
+
+Results: There was no signficant improvement from using different threshold values -- a PM10 concentration of 50 and a probability threshold of 0.5 lead to the best performance.
 
 ```{r}
 # load and set up data
