@@ -1,0 +1,50 @@
+---
+title: "Current Algorithm Analysis"
+author: "Lisa Oshita"
+date: "October 26, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+```
+
+# Objective
+
+This markdown characterizes the current algorithm
+
+* How accurate? (when the alg predicts that a text should be sent out - how accurate is it?)
+* When, on average, is a text message triggered
+* How often does it not work b/c data is missing.
+* Seasonal pattern to wrong predictions?
+
+```{r}
+# load data
+cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/cdf.csv", 
+                skip = 3, 
+                col_names = c("Date", "WSV", "WDV", "ATM", "pm"))
+
+# change date to date time
+cdf <- cdf %>%
+  mutate(Date = parse_date_time(Date, "d!-b!-Y! H!:M!"))
+
+# arch.cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-cdf.csv",
+#                      col_types = list(wsv = "n", wdv = "n", sigt = "n",
+#                                       bam10 = "n", bam25 = "n", date = "c"))
+# 
+# arch.mesa <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-mesa.csv",
+#                       col_types = list(so2 = "n", wsv = "n", wdv = "n", 
+#                                        sigt = "n", amt = "n", bam10 = "n",
+#                                        bam25 = "n", date = "c"))
+```
+
+
+
+```{r}
+str(cdf)
+```
+
