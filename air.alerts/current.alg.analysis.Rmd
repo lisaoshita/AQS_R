@@ -9,8 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 library(readr)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
 ```
 
 # Objective
@@ -22,29 +25,136 @@ This markdown characterizes the current algorithm
 * How often does it not work b/c data is missing.
 * Seasonal pattern to wrong predictions?
 
-```{r}
-# load data
+```{r, message=FALSE}
+# === load data ========================================================
 cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/cdf.csv", 
                 skip = 3, 
                 col_names = c("Date", "WSV", "WDV", "ATM", "pm"))
 
 # change date to date time
 cdf <- cdf %>%
-  mutate(Date = parse_date_time(Date, "d!-b!-Y! H!:M!"))
+  mutate(Date = parse_date_time(Date, "d!-b!-Y! H!:M!")) %>%
+  mutate(day = lubridate::date(Date))
 
-# arch.cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-cdf.csv",
-#                      col_types = list(wsv = "n", wdv = "n", sigt = "n",
-#                                       bam10 = "n", bam25 = "n", date = "c"))
-# 
-# arch.mesa <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-mesa.csv",
-#                       col_types = list(so2 = "n", wsv = "n", wdv = "n", 
-#                                        sigt = "n", amt = "n", bam10 = "n",
-#                                        bam25 = "n", date = "c"))
+arch.cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-cdf.csv",
+                     col_types = list(wsv = "n", wdv = "n", sigt = "n",
+                                      bam10 = "n", bam25 = "n", date = "c"))
+
+arch.cdf <- arch.cdf %>%
+  mutate(date = parse_date_time(date, "Y!-m!*-d! H!:M!:S!")) %>%
+  mutate(day = lubridate::date(date)) %>%
+  mutate(year = lubridate::year(date)) %>%
+  filter(year > 2009) %>%
+  select(-year)
+
+colnames(arch.cdf)[4] <- "pm" 
+
+# === format data ======================================================
+arch.cdf <- arch.cdf %>%
+  mutate(pm = ifelse(pm > 800, NA, pm))
+
+# remove days with < 75% completeness
+to.remove <- arch.cdf %>%
+  group_by(day) %>%
+  summarize(prop.complete = 1 - sum(is.na(pm))/24) %>%
+  filter(prop.complete < 0.75)
+
+arch.cdf <- arch.cdf %>%
+  filter(!day %in% to.remove$day) %>%
+  mutate(hour = lubridate::hour(date))
+
+rm(to.remove)
 ```
-
-
 
 ```{r}
-str(cdf)
+# === manipulating data =================================================
+
+# flag all hours with pm > 175 and after 8:00am
+arch.cdf <- arch.cdf %>%
+  mutate(send.alert = ifelse((pm >= 175) & (hour > 8), 1, 0))
+
+# creating a new df with vars: 
+# - whether or not an alert was sent that day 
+# - the hour that the alert was sent 
+# - the actual 24 hr pm10 average
+# - variable indicating if alg was correct (if actual avg >= 50 and an alert was sent, or if actual avg < 50 and no alert was sent)
+
+cdf.stats <- arch.cdf %>% 
+  group_by(day) %>%
+  summarize(alert.sent = ifelse(sum(send.alert, na.rm = TRUE) > 0, 1, 0),
+            hour.sent = ifelse(sum(send.alert, na.rm = TRUE) == 0, NA, which(send.alert == 1)[1] - 1),
+            actual.avg = mean(pm, na.rm = TRUE),
+            was.correct = ifelse(((actual.avg >= 50) & (alert.sent == 1)) | ((actual.avg < 50) & (alert.sent == 0)), 1, 0))
 ```
+
+```{r}
+# === assessing accuracy ================================================
+
+# =================
+# overall accuracy 
+# =================
+sum(cdf.stats$was.correct) / nrow(cdf.stats)
+# current algorithm is correct 91.6% of the time (sends alert/doesn't send alert correctly)
+# 220 days in 2010 - 2017 that the algorithm was incorrect
+
+# ====================
+# false positive rate
+# ====================
+sum((cdf.stats$alert.sent == 1) & (cdf.stats$was.correct == 0)) / nrow(cdf.stats)
+# 3.5% of all days - algorithm sent out a text when the actual pm10 average did not exceed 50
+
+# ====================
+# false negative rate
+# ====================
+sum((cdf.stats$alert.sent == 0) & (cdf.stats$was.correct == 0)) / nrow(cdf.stats)
+# 4.9% of all days - alg didn't send a text when actual pm10 avg was greater than 50
+
+cdf.stats %>%
+  filter(was.correct == 0) %>%
+  summarize(false.pos = sum(alert.sent == 1)/n(),
+            false.neg = sum(alert.sent == 0)/n())
+# out of all days that were predicted incorrectly - 41.8% are false positives, 58.2% are false negatives
+```
+
+```{r}
+# === time of day alerts are triggered ==================================
+
+ggplot(cdf.stats, aes(x = hour.sent)) + 
+  geom_histogram(na.rm = TRUE, bins = 15, col = "turquoise4", fill = "turquoise4") + 
+  ggtitle("Distribution of time of day that alerts are triggered") + 
+  xlab("Hour of the day")
+
+min(cdf.stats$hour.sent, na.rm = TRUE) # earliest is 9:00
+max(cdf.stats$hour.sent, na.rm = TRUE) # latest is 18:00
+
+# is there a pattern to the hour of the day when the alert is incorrect?
+# pattern to the month/year that an alert is incorrect?
+# pattern to the days that a text wasn't sent out but should have?
+
+# histogram of the hours of the day that a text was sent out when it shouldn't have been
+cdf.stats %>%
+  filter(was.correct == 0) %>%
+  ggplot(aes(x = hour.sent)) + 
+  geom_histogram(na.rm = TRUE, bins = 10, col = "violetred2", fill = "violetred2")
+
+# overlaying the histograms
+ggplot(cdf.stats, aes(x = hour.sent)) + 
+  geom_histogram(data = subset(cdf.stats, was.correct == 1), fill = "blue", col = "blue", alpha = 0.5, bins = 10, na.rm = TRUE) + 
+  geom_histogram(data = subset(cdf.stats, was.correct == 0), fill = "red", col = "red", alpha = 0.5, bins = 10, na.rm = TRUE) + 
+  ggtitle("Distribution of hours of day that alerts were triggered")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
