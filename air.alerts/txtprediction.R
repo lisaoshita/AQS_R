@@ -2,7 +2,7 @@
 ## See explanation at bottom
 
 ## read in, format data
-d <- read.csv("cdf.csv", skip=2)
+d <- read.csv("air.alerts/cdf.csv", skip=2)
 d <- d[, c(1,5)] # for current "cdf.csv" file, which likely is not what was used orignally
 names(d) <- c("date", "pm")
 summary(d)
