@@ -1,0 +1,317 @@
+---
+title: "Data and variable set up"
+author: "Lisa Oshita"
+date: "November 2, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+All code in this file should be ran before any of the model building files. The following code loads the packages, loads/formats training and test sets.
+
+# Load packages
+
+```{r, results='hide'}
+# load packages
+library(readr)
+library(lubridate) # for working with dates
+library(dplyr)
+library(caret) 
+library(AUC)
+library(openair)
+library(tree) 
+library(sp)
+```
+
+# Load data
+
+```{r load data}
+s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
+                        col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
+                                         pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
+                                         ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
+
+s1.cdf.data <- s1.cdf.data %>%
+  mutate(date = parse_date_time(date, "Ymd HMS"))
+
+# contains cdf and S1 data up to 2014
+cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv",
+                       col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
+                                        pm10 = "n", u = "n", v = "n", year = "n", 
+                                        precip = "n", s.rad = "n", a.temp = "n",
+                                        rh = "n", dp = "n", s.temp = "n", height = "n",
+                                        temp850 = "n", ws.max = "n", wd.max = "n",
+                                        u.max = "n", v.max = "n", time = "n", dow = "n",
+                                        u.s1 = "n", v.s1 = "n", u.max.s1 = "n", v.max.s1 = "n"))
+
+cdf.master$date <- date(cdf.master$date)
+
+# contains cdf and S1 data from 2014 - 2017
+cdf.master2 <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.update.csv",
+                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
+                                        u = "n", v = "n", year = "n", precip = "n",
+                                        s.rad = "n", a.temp = "n", rh = "n", dp = "n",
+                                        s.temp = "n", height = "n", temp850 = "n", ws.max = "n",
+                                        wd.max = "n", u.max = "n", v.max = "n", time = "n",
+                                        dow = "n", u.s1 = "n", v.s1 = "n", u.max.s1 = "n",
+                                        v.max.s1 = "n"))
+
+cdf.master2$date <- date(cdf.master2$date)
+```
+
+# Format training data
+
+```{r}
+# train on years before 2015
+training <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(year < 2015)
+
+# removing days with no PM10 data at all (if num missing = 24)
+dates.remove <- training %>%
+  group_by(date.only) %>%
+  summarize(num.missing = sum(is.na(pm10.cdf)),
+            n = n()) %>%
+  filter(num.missing == n) %>%
+  select(date.only)
+
+training <- training %>%
+  filter(!date.only %in% dates.remove$date.only)
+```
+
+
+```{r, echo=TRUE, results='hide'}
+# finding wd and ws values at CDF and S1 that correspond with high pm10 concentrations
+# using openair package
+
+# ==================================
+# convert polar coords to cartesian
+# ==================================
+make.x <- function(ws, wd){
+  ws*cos((90-wd)*pi/180)
+}
+
+make.y <- function(ws, wd){
+  ws*sin((90-wd)*pi/180)
+}
+
+# ===========================================
+# function to see if a point falls in range:
+# ===========================================
+wind.in.range <- function(ws, wd, range) {
+  # assumes range is a two column df with "x" and "y"
+  
+  # assumes ws and wd in usual format, 
+  # so must convert to cartesian coords.
+  # define these functions again, in case they are not 
+  # in environment:
+  
+  make.x <- function(ws, wd){
+    ws*cos((90-wd)*pi/180)
+  }
+  
+  make.y <- function(ws, wd){
+    ws*sin((90-wd)*pi/180)
+  }
+  
+  xs <- make.x(ws, wd)
+  ys <- make.y(ws, wd)
+  
+  # test if in range
+  res <- point.in.polygon(xs, ys, range$x, range$y)
+  
+  # return 0 if outside, 1 if inside or on edge, NA if ws or wd is missing
+  res <- ifelse(res == 0, 0, 1) # see ?point.in.polygon
+  res[is.na(ws) | is.na(wd)] <- NA # preserve NA's
+  return(res) 
+}
+
+# ====
+# CDF 
+# ====
+cdf.training <- training %>%
+  select(date, date.only, year, ws.cdf, wd.cdf, pm10.cdf)
+colnames(cdf.training) <- c("date", "date.only", "year", "ws", "wd", "pm10")
+
+cdf.clust <- polarCluster(cdf.training, 
+                          pollutant = "pm10",
+                          x = "ws",
+                          wd = "wd",
+                          n.clusters = 2) # cluster 2 is high pm10 
+
+# get cluster of high PM and create cartersian coordinates:
+cdf.range <- cdf.clust$data %>% 
+  filter(cluster == 2) %>%
+  mutate(x = make.x(ws, wd)) %>%
+  mutate(y = make.y(ws, wd))
+
+# get convex hull
+chull.index.cdf <- chull(cdf.range$x, cdf.range$y)
+chull.index.cdf <- c(chull.index.cdf, chull.index.cdf[1])
+cdf.range.chull <- cdf.range[chull.index.cdf, c("x", "y")]
+
+cdf.preds <- wind.in.range(cdf.clust$data$ws, cdf.clust$data$wd, cdf.range.chull)
+
+cdf.clust$data <- cdf.clust$data %>%
+  mutate(in.range = cdf.preds) %>%
+  mutate(hour = lubridate::hour(date)) %>%
+  group_by(date.only) %>%
+  summarize(wd.ws.in.range.cdf = sum(in.range, na.rm = TRUE),
+            max.ws.cdf = max(ws, na.rm = TRUE),
+            hour.max.ws.cdf = ifelse(length(which.max(ws)) == 0, NA, lubridate::hour(date[which.max(ws)])),
+            wd.at.max.cdf = ifelse(is.na(hour.max.ws.cdf), NA, wd[which.max(ws)])) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf))
+
+# ===
+# S1 
+# ===
+s1.training <- training %>%
+  select(date, date.only, year, wd.s1, ws.s1, pm10.cdf)
+colnames(s1.training) <- c("date", "date.only", "year", "wd", "ws", "pm10")
+
+s1.clust <- polarCluster(s1.training,
+                         pollutant = "pm10",
+                         x = "ws",
+                         wd = "wd",
+                         n.clusters = 2)
+
+# get cluster of high PM and create cartersian coordinates:
+s1.range <- s1.clust$data %>% 
+  filter(cluster == 2) %>%
+  mutate(x = make.x(ws, wd)) %>%
+  mutate(y = make.y(ws, wd))
+
+# get convex hull
+chull.index.s1 <- chull(s1.range$x, s1.range$y)
+chull.index.s1 <- c(chull.index.s1, chull.index.s1[1])
+s1.range.chull <- s1.range[chull.index.s1, c("x", "y")]
+
+s1.preds <- wind.in.range(s1.clust$data$ws, s1.clust$data$wd, s1.range.chull)
+
+s1.clust$data <- s1.clust$data %>%
+  mutate(in.range = s1.preds) %>%
+  mutate(hour = lubridate::hour(date)) %>%
+  group_by(date.only) %>%
+  summarize(wd.ws.in.range.s1 = sum(in.range, na.rm = TRUE),
+            max.ws.s1 = max(ws, na.rm = TRUE),
+            hour.max.ws.s1 = ifelse(length(which.max(ws)) == 0, NA, lubridate::hour(date[which.max(ws)])),
+            wd.at.max.s1 = ifelse(is.na(hour.max.ws.s1), NA, wd[which.max(ws)])) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1))
+
+# =========================================================================================
+
+# computing pm10 avg 24 hr concentration
+pm10.averages <- training %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+
+# joining all data frames
+train1 <- cdf.clust$data %>%
+  full_join(s1.clust$data, by = "date.only") %>%
+  mutate(did.exceed = pm10.averages$did.exceed)
+  
+colnames(train1)[1] <- "date"
+
+# merge train1 with other columns in cdf.master
+train1 <- train1 %>%
+  left_join(cdf.master, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(date, did.exceed, wd.ws.in.range.cdf, max.ws.cdf, hour.max.ws.cdf, wd.at.max.cdf,
+         wd.ws.in.range.s1, max.ws.s1, hour.max.ws.s1, wd.at.max.s1, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+# =========================================================================================
+
+# examining missing data w/ Missingness map 
+Amelia::missmap(train1) # only 4% of the training data is missing - ok to omit these rows
+train1 <- na.omit(train1) 
+
+train1$did.exceed <- as.factor(train1$did.exceed)
+```
+
+# Format test data
+
+```{r format test data, echo=TRUE, results='hide'}
+# test on years after 2015
+testing <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(lubridate::year(date) >= 2015)
+
+# removing days with no PM10 data at all (if num missing = 24)
+dates.remove <- testing %>%
+  group_by(date.only) %>%
+  summarize(num.missing = sum(is.na(pm10.cdf)),
+            n = n()) %>%
+  filter(num.missing == n) %>%
+  select(date.only)
+
+testing <- testing %>%
+  filter(!date.only %in% dates.remove$date.only)
+
+# setting up variables
+testing$cdf.preds <- wind.in.range(testing$ws.cdf, testing$wd.cdf, cdf.range.chull)
+testing$s1.preds <- wind.in.range(testing$ws.s1, testing$wd.s1, s1.range.chull)
+
+# creating variables
+test <- testing %>%
+  mutate(hour = lubridate::hour(date)) %>%
+  group_by(date.only) %>%
+  summarize(wd.ws.in.range.cdf = sum(cdf.preds, na.rm = TRUE),
+            wd.ws.in.range.s1 = sum(s1.preds, na.rm = TRUE),
+            max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, lubridate::hour(date[which.max(ws.s1)])), 
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, lubridate::hour(date[which.max(ws.cdf)])),
+            wd.at.max.s1 = ifelse(is.na(hour.max.ws.s1), NA, wd.s1[which.max(ws.s1)]),
+            wd.at.max.cdf = ifelse(is.na(hour.max.ws.cdf), NA, wd.cdf[which.max(ws.cdf)])) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf))
+
+colnames(test)[1] <- "date"
+
+# computing 24 hour average pm10 concentration
+pm10.averages.test <- testing %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+
+# merge test with other columns in cdf.master2
+test <- test %>%
+  mutate(did.exceed = pm10.averages.test$did.exceed) %>%
+  left_join(cdf.master2, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(date, did.exceed, wd.ws.in.range.cdf, max.ws.cdf, hour.max.ws.cdf, wd.at.max.cdf,
+         wd.ws.in.range.s1, max.ws.s1, hour.max.ws.s1, wd.at.max.s1, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+
+# assess rows with missing data
+Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
+test <- na.omit(test) 
+
+test$did.exceed <- as.factor(test$did.exceed)
+```
+
+# Clean workspace
+
+```{r}
+rm(cdf.clust, cdf.master, cdf.master2, cdf.range, cdf.range.chull,
+   cdf.training, dates.remove, s1.cdf.data, s1.clust, s1.range,
+   s1.range.chull, s1.training, cdf.preds, chull.index.cdf, 
+   chull.index.s1, s1.preds, make.x, make.y, wind.in.range)
+```
+
+
+
+
+
+
+
+
