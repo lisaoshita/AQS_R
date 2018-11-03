@@ -221,7 +221,8 @@ tune.out <- tune(svm, did.exceed ~ .,
                  data = train1, 
                  kernel = "polynomial",
                  degree = 2,
-                 ranges = list(cost = c(.01, .1, .5, 1, 5, 7, 10)))
+                 ranges = list(cost = c(.01, .1, .5, 1, 5, 7, 10)),
+                 probability = TRUE)
 
 summary(tune.out)
 
@@ -230,18 +231,19 @@ svm.tuned <- svm(did.exceed ~ .,
                  data = train1,
                  kernel = "polynomial",
                  degree = 2,
-                 cost = 5)
+                 cost = 10,
+                 probability = TRUE)
 
 # ------------------------------------------
 # assessing training error + ROC/AUC metric
 # ------------------------------------------
-train.preds <- predict(svm.tuned, newdata = train1)
+train.preds <- predict(svm.tuned, newdata = train1, probability = TRUE)
 
 # classification accuracy
 mean(train.preds == train1$did.exceed) # 0.9238866
 
 # ROC/AUC 
-train.roc <- roc(predictions = train.preds,
+train.roc <- roc(predictions = attr(train.preds, "probabilities")[ , 1],
                  labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
 train.auc <- auc(train.roc)
 plot(train.roc, main = paste("AUC:", train.auc))
@@ -249,13 +251,13 @@ plot(train.roc, main = paste("AUC:", train.auc))
 # --------------------------------------
 # assessing test error + ROC/AUC metric
 # --------------------------------------
-test.preds <- predict(svm.tuned, newdata = test)
+test.preds <- predict(svm.tuned, newdata = test, probability = TRUE)
 
 # classification accuracy
 mean(test.preds == test$did.exceed) # 0.8945191
 
 # ROC/AUC
-test.roc <- roc(predictions = test.preds,
+test.roc <- roc(predictions = attr(test.preds, "probabilities")[ , 1],
                 labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
 test.auc <- auc(test.roc)
 plot(test.roc, main = paste("AUC:", test.auc))
@@ -266,27 +268,29 @@ plot(test.roc, main = paste("AUC:", test.auc))
 ```{r}
 # tuning svm with linear kernel
 tune.out.linear <- tune(svm, did.exceed ~ ., 
-                        data = train1,
+                        data = train1 %>% select(-date),
                         kernel = "linear",
-                        ranges = list(cost = c(0.001, .01, .1, .5, 1, 5, 7, 10)))
+                        ranges = list(cost = c(0.001, .01, .1, .5, 1, 5, 7, 10)),
+                        probability = TRUE)
 
 summary(tune.out.linear) # best with C = 0.1
 
 svm.tuned.linear <- svm(did.exceed ~ ., 
-                        data = train1,
+                        data = train1 %>% select(-date),
                         kernel = "linear",
-                        cost = 0.1)
+                        cost = 5,
+                        probability = TRUE)
 
 # ------------------------------------------
 # assessing training error + ROC/AUC metric
 # ------------------------------------------
-train.preds.linear <- predict(svm.tuned.linear, newdata = train1)
+train.preds.linear <- predict(svm.tuned.linear, newdata = train1 %>% select(-date), probability = TRUE)
 
 # classification accuracy
 mean(train.preds.linear == train1$did.exceed) # 0.908502
 
 # ROC/AUC
-train.roc.linear <- roc(predictions = train.preds.linear,
+train.roc.linear <- roc(predictions = attr(train.preds.linear, "probabilities")[ , 1],
                         labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
 train.auc.linear <- auc(train.roc.linear)
 plot(train.roc.linear, main = paste("AUC:", train.auc.linear)) # 0.841
@@ -294,13 +298,13 @@ plot(train.roc.linear, main = paste("AUC:", train.auc.linear)) # 0.841
 # --------------------------------------
 # assessing test error + ROC/AUC metric
 # --------------------------------------
-test.preds.linear <- predict(svm.tuned.linear, newdata = test)
+test.preds.linear <- predict(svm.tuned.linear, newdata = test %>% select(-c(did.exceed, date)), probability = TRUE)
 
 # classification accuracy
 mean(test.preds.linear == test$did.exceed) # 0.8986556
 
 # ROC/AUC
-test.roc.linear <- roc(predictions = test.preds.linear,
+test.roc.linear <- roc(predictions = attr(test.preds.linear, "probabilities")[ , 1],
                        labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
 test.auc.linear <- auc(test.roc.linear)
 plot(test.roc.linear, main = paste("AUC:", test.auc.linear))

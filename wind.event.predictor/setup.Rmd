@@ -13,7 +13,7 @@ All code in this file should be ran before any of the model building files. The 
 
 # Load packages
 
-```{r, results='hide'}
+```{r, warning=FALSE, message=FALSE}
 # load packages
 library(readr)
 library(lubridate) # for working with dates
@@ -23,11 +23,12 @@ library(AUC)
 library(openair)
 library(tree) 
 library(sp)
+library(e1071)
 ```
 
 # Load data
 
-```{r load data}
+```{r load data, message=FALSE}
 s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
                         col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
                                          pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
@@ -82,8 +83,7 @@ training <- training %>%
   filter(!date.only %in% dates.remove$date.only)
 ```
 
-
-```{r, echo=TRUE, results='hide'}
+```{r}
 # finding wd and ws values at CDF and S1 that correspond with high pm10 concentrations
 # using openair package
 
@@ -221,7 +221,7 @@ train1 <- train1 %>%
   left_join(cdf.master, by = "date") %>%
   mutate(month = month(date)) %>%
   mutate(day.of.month = day(date)) %>%
-  select(date, did.exceed, wd.ws.in.range.cdf, max.ws.cdf, hour.max.ws.cdf, wd.at.max.cdf,
+  select(did.exceed, wd.ws.in.range.cdf, max.ws.cdf, hour.max.ws.cdf, wd.at.max.cdf,
          wd.ws.in.range.s1, max.ws.s1, hour.max.ws.s1, wd.at.max.s1, 
          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
 
