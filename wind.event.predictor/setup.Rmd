@@ -69,21 +69,10 @@ cdf.master2$date <- date(cdf.master2$date)
 training <- s1.cdf.data %>%
   mutate(date.only = lubridate::date(date)) %>%
   filter(lubridate::year(date) < 2015)
-
-# # removing days with no PM10 data at all (if num missing = 24)
-# dates.remove <- training %>%
-#   group_by(date.only) %>%
-#   summarize(num.missing = sum(is.na(pm10.cdf)),
-#             n = n()) %>%
-#   filter(num.missing == n) %>%
-#   select(date.only)
-# 
-# training <- training %>%
-#   filter(!date.only %in% dates.remove$date.only)
 ```
 
 ```{r}
-# finding wd and ws values at CDF and S1 that correspond with high pm10 concentrations
+# finding wd and ws at CDF and S1 that correspond with high pm10 concentrations
 # using openair package
 
 # ==================================
@@ -97,9 +86,9 @@ make.y <- function(ws, wd){
   ws*sin((90-wd)*pi/180)
 }
 
-# ===========================================
-# function to see if a point falls in range:
-# ===========================================
+# ================================================
+# function to determine if points lie w/in range:
+# ================================================
 wind.in.range <- function(ws, wd, range) {
   # assumes range is a two column df with "x" and "y"
   
@@ -188,27 +177,6 @@ train1 <- training %>%
             wd.at.max.cdf = ifelse(is.na(hour.max.ws.cdf), NA, wd.s1[which.max(ws.s1)])) %>%
   mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
   mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) # %>%
-  
-
-# s1.with.clust <- s1.with.clust %>%
-#   mutate(in.range = s1.preds) %>%
-#   mutate(hour = lubridate::hour(date)) %>%
-#   group_by(date.only) %>%
-#   summarize(wd.ws.in.range.s1 = sum(in.range, na.rm = TRUE),
-#             max.ws.s1 = max(ws, na.rm = TRUE),
-#             hour.max.ws.s1 = ifelse(length(which.max(ws)) == 0, NA, lubridate::hour(date[which.max(ws)])),
-#             wd.at.max.s1 = ifelse(is.na(hour.max.ws.s1), NA, wd[which.max(ws)])) %>%
-#   mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1))
-
-# cdf.with.clust <- cdf.with.clust %>%
-#   mutate(in.range = wind.in.range(ws, wd, cdf.range.chull)) %>%
-#   mutate(hour = lubridate::hour(date)) %>%
-#   group_by(date.only) %>%
-#   summarize(wd.ws.in.range.cdf = sum(in.range, na.rm = TRUE),
-#             max.ws.cdf = max(ws, na.rm = TRUE),
-#             hour.max.ws.cdf = ifelse(length(which.max(ws)) == 0, NA, lubridate::hour(date[which.max(ws)])),
-#             wd.at.max.cdf = ifelse(is.na(hour.max.ws.cdf), NA, wd[which.max(ws)])) %>%
-#   mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf))
 
 # =========================================================================================
 
@@ -235,7 +203,7 @@ train1 <- train1 %>%
 # =========================================================================================
 
 # examining missing data w/ Missingness map 
-# Amelia::missmap(train1) # only 4% of the training data is missing - ok to omit these rows
+Amelia::missmap(train1) # only 4% of the training data is missing - ok to omit these rows
 train1 <- na.omit(train1) 
 
 train1$did.exceed <- as.factor(train1$did.exceed)
@@ -244,24 +212,13 @@ train1$did.exceed <- as.factor(train1$did.exceed)
 # Format test data
 
 ```{r format test data, echo=TRUE, results='hide'}
+
 # test on years after 2015
 testing <- s1.cdf.data %>%
   mutate(year = lubridate::year(date)) %>%
   mutate(date.only = lubridate::date(date)) %>%
   filter(lubridate::year(date) >= 2015)
 
-# # removing days with no PM10 data at all (if num missing = 24)
-# dates.remove <- testing %>%
-#   group_by(date.only) %>%
-#   summarize(num.missing = sum(is.na(pm10.cdf)),
-#             n = n()) %>%
-#   filter(num.missing == n) %>%
-#   select(date.only)
-# 
-# testing <- testing %>%
-#   filter(!date.only %in% dates.remove$date.only)
-
-# creating variables
 test <- testing %>%
   mutate(hour = lubridate::hour(date)) %>%
   group_by(date.only) %>%
@@ -294,7 +251,6 @@ test <- test %>%
          wind.in.range.s1, max.ws.s1, hour.max.ws.s1, wd.at.max.s1, 
          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
 
-
 # assess rows with missing data
 Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
 test <- na.omit(test) 
@@ -310,11 +266,4 @@ rm(cdf.clust, cdf.master, cdf.master2, cdf.range, cdf.range.chull,
    s1.range.chull, s1.training, cdf.preds, chull.index.cdf, 
    chull.index.s1, s1.preds, make.x, make.y, wind.in.range)
 ```
-
-
-
-
-
-
-
 
