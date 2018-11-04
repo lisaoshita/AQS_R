@@ -29,7 +29,7 @@ library(e1071)
 # Load data
 
 ```{r load data, message=FALSE}
-s1.cdf.data <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/forLisa.csv",
+s1.cdf.data <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/data/forLisa.csv",
                         col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
                                          pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
                                          ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
@@ -38,7 +38,7 @@ s1.cdf.data <- s1.cdf.data %>%
   mutate(date = parse_date_time(date, "Ymd HMS"))
 
 # contains cdf and S1 data up to 2014
-cdf.master <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/cdf.master.csv",
+cdf.master <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/data/cdf.master.csv",
                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
                                         pm10 = "n", u = "n", v = "n", year = "n", 
                                         precip = "n", s.rad = "n", a.temp = "n",
@@ -50,7 +50,7 @@ cdf.master <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predic
 cdf.master$date <- date(cdf.master$date)
 
 # contains cdf and S1 data from 2014 - 2017
-cdf.master2 <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/cdf.master.update.csv",
+cdf.master2 <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/data/cdf.master.update.csv",
                         col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
                                         u = "n", v = "n", year = "n", precip = "n",
                                         s.rad = "n", a.temp = "n", rh = "n", dp = "n",
