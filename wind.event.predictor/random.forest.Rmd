@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Random Forest parameter tuning
 
 ```{r}
-grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))), 
+grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1)) - 1), 
                               8, 10, 15),
                     .splitrule = "gini",
                     .min.node.size = c(5, 10, 20))
@@ -25,7 +25,7 @@ tune.control <- trainControl(method = "cv",
 set.seed(1)
 # tuning on 500 trees
 rf.tuning.500 <- train(did.exceed ~ ., 
-                       data = train1, 
+                       data = train1 %>% select(-date), 
                        method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
                        tuneGrid = grid, 
                        num.trees = 500,
@@ -55,13 +55,13 @@ rf.tuning.1500 <- train(did.exceed ~ .,
 
 
 # parameter tuning results
-rf.tuning.500$results # ROC: 0.9468062, Sens = 0.9687824, Spec = 0.7045118 --- mtry = 8, min.node.size = 5 0.8339352
+rf.tuning.500$results # ROC: 0.9491910 --- mtry = 8, min.node.size = 5
 rf.tuning.500$bestTune
 
-rf.tuning.1000$results # ROC: 0.9506774, Sens = 0.9698187, spec = 0.6937374 --- mtry = 5, min.node.size = 5 0.8337254
+rf.tuning.1000$results # ROC: 0.9538377 --- mtry = 3, min.node.size = 5
 rf.tuning.1000$bestTune
 
-rf.tuning.1500$results # ROC: 0.9526248, Sens = 0.9729383, Spec = 0.7154209 --- mtry = 5, min.node.size = 5 0.8260119
+rf.tuning.1500$results # ROC: 0.9543269 --- mtry = 3, min.node.size = 10
 rf.tuning.1500$bestTune
 
 # assessing variable importance
@@ -72,9 +72,9 @@ plot(varImp(rf.tuning.1500))
 # Fitting model to the full training set
 
 ```{r}
-final.grid <- data.frame(.mtry = 4,
+final.grid <- data.frame(.mtry = 3,
                          .splitrule = "gini",
-                         .min.node.size = 5)
+                         .min.node.size = 10)
 
 final.control <- trainControl(method = "none",
                               verboseIter = TRUE,
@@ -82,16 +82,14 @@ final.control <- trainControl(method = "none",
                               summaryFunction = twoClassSummary)
 
 set.seed(1)
-start.fit <- Sys.time()
 rf.fit <- train(did.exceed ~ .,
                 data = train1 %>% select(-date),
                 method = "ranger",
                 tuneGrid = final.grid,
                 trControl = final.control,
-                num.trees = 500,
+                num.trees = 1500,
                 importance = "impurity",
                 metric = "ROC")
-end.fit <- Sys.time() # 1.4 seconds
 
 # compute predictions
 rf.preds <- predict(rf.fit, newdata = test, type = "prob")
@@ -101,7 +99,7 @@ rf.preds <- rf.preds %>%
   mutate(actual = test$did.exceed)
 
 # classification accuracy
-mean(rf.preds$actual == rf.preds$prediction) # 0.9193382 accuracy
+mean(rf.preds$actual == rf.preds$prediction) # 0.910031 accuracy
 
 # ROC/AUC
 roc.metric <- roc(predictions = rf.preds$yes,
