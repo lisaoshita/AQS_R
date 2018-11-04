@@ -1,0 +1,748 @@
+---
+title: "New Model Results and Explanations"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+# load packages
+library(readr)
+library(lubridate) # for working with dates
+library(dplyr)
+library(caret)
+library(AUC)
+library(openair)
+library(tree) # for decision tree at bottom
+library(xgboost)
+library(e1071) # for SVMs
+
+load("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/final.workspace.new.RData")
+```
+
+# Overview
+
+This file contains the results/explanations of building the wind event predictors on the new data with revised variables (`wind.in.range`, `wd.at.max`). All code is generally the same as in `final.results.Rmd`. The main differences lie in the training and test sets. 
+
+Also, with the support vector machines, we discussed that the ROC plots looked incorrect. I found that `roc()` and `auc()` were working incorrectly because `svm()` was outputting the actual class predictions instead of class probabilites. The code in this file corrects that issue and displays the correct ROC/AUC for SVMs. 
+
+# Setting up the data
+
+The following code loads/formats the training and test sets. New variables include: 
+
+* `wind.event.in.range.s1`: number of times per day that wind direction and wind speed at S1 fell within the range that corresponds with high PM10 concentrations
+* `wind.event.in.range.cdf`: same as above but at CDF
+* `wd.at.max.s1`: wind direction at S1 when wind speed was at maximum for the day
+* `wd.at.max.cdf`: wind direction at CDF when wind speed was at maximum for the day
+
+```{r load data, eval=FALSE}
+s1.cdf.data <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/forLisa.csv",
+                        col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
+                                         pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
+                                         ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
+
+s1.cdf.data <- s1.cdf.data %>%
+  mutate(date = parse_date_time(date, "Ymd HMS"))
+
+# contains cdf and S1 data up to 2014
+cdf.master <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/cdf.master.csv",
+                       col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
+                                        pm10 = "n", u = "n", v = "n", year = "n", 
+                                        precip = "n", s.rad = "n", a.temp = "n",
+                                        rh = "n", dp = "n", s.temp = "n", height = "n",
+                                        temp850 = "n", ws.max = "n", wd.max = "n",
+                                        u.max = "n", v.max = "n", time = "n", dow = "n",
+                                        u.s1 = "n", v.s1 = "n", u.max.s1 = "n", v.max.s1 = "n"))
+
+cdf.master$date <- date(cdf.master$date)
+
+# contains cdf and S1 data from 2014 - 2017
+cdf.master2 <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/cdf.master.update.csv",
+                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
+                                        u = "n", v = "n", year = "n", precip = "n",
+                                        s.rad = "n", a.temp = "n", rh = "n", dp = "n",
+                                        s.temp = "n", height = "n", temp850 = "n", ws.max = "n",
+                                        wd.max = "n", u.max = "n", v.max = "n", time = "n",
+                                        dow = "n", u.s1 = "n", v.s1 = "n", u.max.s1 = "n",
+                                        v.max.s1 = "n"))
+
+cdf.master2$date <- date(cdf.master2$date)
+```
+
+```{r set up training data, eval=FALSE}
+# train on years before 2015
+training <- s1.cdf.data %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(lubridate::year(date) < 2015)
+
+# finding wd and ws at CDF and S1 that correspond with high pm10 concentrations
+# using openair package
+
+# ==================================
+# convert polar coords to cartesian
+# ==================================
+make.x <- function(ws, wd){
+  ws*cos((90-wd)*pi/180)
+}
+
+make.y <- function(ws, wd){
+  ws*sin((90-wd)*pi/180)
+}
+
+# ================================================
+# function to determine if points lie w/in range:
+# ================================================
+wind.in.range <- function(ws, wd, range) {
+  # assumes range is a two column df with "x" and "y"
+  
+  # assumes ws and wd in usual format, 
+  # so must convert to cartesian coords.
+  # define these functions again, in case they are not 
+  # in environment:
+  
+  make.x <- function(ws, wd){
+    ws*cos((90-wd)*pi/180)
+  }
+  
+  make.y <- function(ws, wd){
+    ws*sin((90-wd)*pi/180)
+  }
+  
+  xs <- make.x(ws, wd)
+  ys <- make.y(ws, wd)
+  
+  # test if in range
+  res <- point.in.polygon(xs, ys, range$x, range$y)
+  
+  # return 0 if outside, 1 if inside or on edge, NA if ws or wd is missing
+  res <- ifelse(res == 0, 0, 1) # see ?point.in.polygon
+  res[is.na(ws) | is.na(wd)] <- NA # preserve NA's
+  return(res) 
+}
+
+# ====
+# CDF 
+# ====
+cdf.training <- training %>%
+  select(date, date.only, year, ws.cdf, wd.cdf, pm10.cdf)
+colnames(cdf.training) <- c("date", "date.only", "year", "ws", "wd", "pm10")
+
+cdf.clust <- polarCluster(cdf.training, 
+                          pollutant = "pm10",
+                          x = "ws",
+                          wd = "wd",
+                          n.clusters = 2) # cluster 2 is high pm10 
+
+# get cluster of high PM and create cartersian coordinates:
+cdf.range <- cdf.clust$data %>% 
+  filter(cluster == 2) %>%
+  mutate(x = make.x(ws, wd)) %>%
+  mutate(y = make.y(ws, wd))
+
+# get convex hull
+chull.index <- chull(cdf.range$x, cdf.range$y)
+chull.index <- c(chull.index, chull.index[1])
+cdf.range.chull <- cdf.range[chull.index, c("x", "y")]
+
+# ===
+# S1 
+# ===
+s1.training <- training %>%
+  select(date, date.only, year, wd.s1, ws.s1, pm10.cdf)
+colnames(s1.training) <- c("date", "date.only", "year", "wd", "ws", "pm10")
+
+s1.clust <- polarCluster(s1.training,
+                         pollutant = "pm10",
+                         x = "ws",
+                         wd = "wd",
+                         n.clusters = 2)
+
+# get cluster of high PM and create cartersian coordinates:
+s1.range <- s1.clust$data %>% 
+  filter(cluster == 2) %>%
+  mutate(x = make.x(ws, wd)) %>%
+  mutate(y = make.y(ws, wd))
+
+# get convex hull
+chull.index <- chull(s1.range$x, s1.range$y)
+chull.index <- c(chull.index, chull.index[1])
+s1.range.chull <- s1.range[chull.index, c("x", "y")]
+
+train1 <- training %>%
+  group_by(date.only) %>%
+  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE), 
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+            wind.in.range.cdf = sum(wind.in.range(ws.cdf, wd.cdf, cdf.range.chull), na.rm = TRUE), 
+            wind.in.range.s1 = sum(wind.in.range(ws.s1, wd.s1, s1.range.chull), na.rm = TRUE),
+            wd.at.max.s1 = ifelse(is.na(hour.max.ws.s1), NA, wd.s1[which.max(ws.s1)]),
+            wd.at.max.cdf = ifelse(is.na(hour.max.ws.cdf), NA, wd.s1[which.max(ws.s1)])) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) # %>%
+
+# =========================================================================================
+
+# computing pm10 avg 24 hr concentration
+pm10.averages <- training %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+colnames(pm10.averages)[1] <- "date"
+
+# joining all data frames
+colnames(train1)[1] <- "date"
+
+# merge train1 with other columns in cdf.master
+train1 <- train1 %>%
+  left_join(pm10.averages, by = "date") %>%
+  left_join(cdf.master, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(did.exceed, wind.in.range.cdf, max.ws.cdf, hour.max.ws.cdf, wd.at.max.cdf,
+         wind.in.range.s1, max.ws.s1, hour.max.ws.s1, wd.at.max.s1, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+# =========================================================================================
+
+# examining missing data w/ Missingness map 
+Amelia::missmap(train1) # only 4% of the training data is missing - ok to omit these rows
+train1 <- na.omit(train1) 
+
+train1$did.exceed <- as.factor(train1$did.exceed)
+```
+
+```{r format test data, eval=FALSE}
+# test on years after 2015
+testing <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(lubridate::year(date) >= 2015)
+
+test <- testing %>%
+  mutate(hour = lubridate::hour(date)) %>%
+  group_by(date.only) %>%
+  summarize(wind.in.range.cdf = sum(wind.in.range(ws.cdf, wd.cdf, cdf.range.chull), na.rm = TRUE), 
+            wind.in.range.s1 = sum(wind.in.range(ws.s1, wd.s1, s1.range.chull), na.rm = TRUE),
+            max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, lubridate::hour(date[which.max(ws.s1)])), 
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, lubridate::hour(date[which.max(ws.cdf)])),
+            wd.at.max.s1 = ifelse(is.na(hour.max.ws.s1), NA, wd.s1[which.max(ws.s1)]),
+            wd.at.max.cdf = ifelse(is.na(hour.max.ws.cdf), NA, wd.cdf[which.max(ws.cdf)])) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf))
+
+colnames(test)[1] <- "date"
+
+# computing 24 hour average pm10 concentration
+pm10.averages <- testing %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+
+# merge test with other columns in cdf.master2
+test <- test %>%
+  mutate(did.exceed = pm10.averages$did.exceed) %>%
+  left_join(cdf.master2, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(date, did.exceed, wind.in.range.cdf, max.ws.cdf, hour.max.ws.cdf, wd.at.max.cdf,
+         wind.in.range.s1, max.ws.s1, hour.max.ws.s1, wd.at.max.s1, 
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+# assess rows with missing data
+Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
+test <- na.omit(test) 
+
+test$did.exceed <- as.factor(test$did.exceed)
+```
+
+```{r clear workspace, eval=FALSE}
+rm(cdf.clust, cdf.range, cdf.range.chull,
+   cdf.training, pm10.averages, s1.clust, 
+   s1.range, s1.range.chull, s1.training, 
+   testing, training, chull.index, make.x, 
+   make.y, wind.in.range)
+```
+
+# Random forest
+
+#### Parameter tuning
+
+```{r, eval=FALSE}
+# parameter tuning set up
+tune.control <- trainControl(method = "cv",
+                             number = 5,
+                             verboseIter = FALSE,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary) # twoClassSummary: needed for ROC/AUC metrics
+
+grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))),
+                              8, 10, 15),
+                    .splitrule = "gini",
+                    .min.node.size = c(5, 10, 20))
+```
+
+```{r, eval=FALSE}
+set.seed(1)
+
+# ====================
+# tuning on 500 trees
+# ====================
+rf.tuning.500 <- train(did.exceed ~ .,
+                       data = train1,
+                       method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
+                       tuneGrid = grid,
+                       num.trees = 500,
+                       trControl = tune.control,
+                       importance = "impurity", # allows you to assess variable importance
+                       metric = "ROC")
+rf.tuning.500$bestTune # allows you to view the parameter values that lead to the best performance
+```
+
+```{r}
+# ========
+# results: 
+# ========
+# optimal parameters: mtry = 4, min.node.size = 20
+# ROC: 0.949
+knitr::kable(rf.tuning.500$results, caption = "Tuning results with 500 trees") 
+```
+
+```{r, eval=FALSE}
+# ====================
+# tuning on 1000 trees
+# ====================
+rf.tuning.1000 <- train(did.exceed ~ .,
+                        data = train1,
+                        method = "ranger",
+                        tuneGrid = grid,
+                        num.trees = 1000,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
+rf.tuning.1000$bestTune
+```
+
+```{r}
+# ========
+# results:
+# ========
+# optimal parameters: mtry = 4, min.node.size = 10
+# ROC: 0.9538
+knitr::kable(rf.tuning.1000$results, caption = "Tuning results with 1000 trees")
+```
+
+```{r, eval=FALSE}
+# ====================
+# tuning on 1500 trees
+# ====================
+rf.tuning.1500 <- train(did.exceed ~ .,
+                        data = train1,
+                        method = "ranger",
+                        tuneGrid = grid,
+                        num.trees = 1500,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
+rf.tuning.1500$bestTune
+```
+
+```{r}
+# ========
+# results:
+# ========
+# optimal parameters: mtry = 4, min.node.size = 5
+# ROC: 0.9539
+knitr::kable(rf.tuning.1500$results, caption = "Tuning results with 1500 trees") 
+```
+
+ROC metrics above are pretty similar, indicating that no model performs drastically better than another. Random forests with 1,000 trees and 1,500 trees achieved almost identical ROC scores. For the sake of computational speed, we'll go with the model built on 1,000 trees and the following parameter values:
+
+```{r}
+knitr::kable(rf.tuning.1000$bestTune)
+plot(rf.tuning.1000)
+```
+
+Importance of variables in the model can be assessed with: 
+
+```{r}
+plot(varImp(rf.tuning.1000))
+```
+
+#### Fitting to the full training set
+
+The following fits the random forest with the optimal parameters found in the previous step, to the full training set and tests it on the held-out set.
+
+```{r, eval=FALSE}
+# ============= Set up parameters: 
+final.grid <- data.frame(.mtry = 4, # contains the optimal parameters
+                         .splitrule = "gini",
+                         .min.node.size = 10)
+
+final.control <- trainControl(method = "none", # tells train() to fit the model to the full data without any partitioning
+                              verboseIter = TRUE,
+                              classProbs = TRUE,
+                              summaryFunction = twoClassSummary)
+
+# ============= Fit the model: 
+set.seed(1)
+rf.fit <- train(did.exceed ~ .,
+                data = train1,
+                method = "ranger",
+                tuneGrid = final.grid,
+                trControl = final.control,
+                num.trees = 1000,
+                importance = "impurity",
+                metric = "ROC")
+```
+
+#### Assessing performance
+
+```{r, eval=FALSE}
+# ============= Compute predictions: 
+rf.preds <- predict(rf.fit, newdata = test, type = "prob")
+
+rf.preds <- rf.preds %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+```
+
+The model achieved a classification accuracy of `r round(mean(rf.preds$actual == rf.preds$prediction) * 100, 3)`%.
+
+```{r, eval=FALSE}
+# ROC/AUC
+roc.metric <- roc(predictions = rf.preds$yes,
+                  labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+auc.metric <- auc(roc.metric)
+```
+
+```{r}
+# sensitivity: true positive rate - ability of the model to correctly identify wind event days
+# specificity: true negative rate - ability of the model to correctly identify non-wind event days
+plot(roc.metric, main = paste("Random Forest  -  AUC:", round(auc.metric, 4)))
+```
+
+The following is a confusion matrix of the model's predictions, as well as calculated precision and recall. 
+
+```{r}
+# precision = 140 / (26 + 140) = 0.843
+# out of all of the days that are being predicted as wind event days, 84.3% of them are actually wind event days
+
+# recall = 140 / (60 + 140) = 0.70
+# out of all of the days that truly were wind event days, 70% of them were classified correctly
+
+table(rf.preds$prediction, rf.preds$actual)
+```
+
+# XGBoosts
+
+#### Parameter tuning 
+
+```{r, eval=FALSE}
+# parameter tuning
+xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
+                             max_depth = c(3, 6, 10),
+                             eta = 0.3,
+                             gamma = 1,
+                             min_child_weight = 1,
+                             colsample_bytree = c(0.5, 0.8),
+                             subsample = c(0.5, 0.8))
+
+tune.control <- trainControl(method = "cv",
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary)
+
+xgb.tune <- train(did.exceed ~ .,
+                  data = train1,
+                  method = "xgbTree",
+                  tuneGrid = xgb.tune.grid,
+                  trControl = tune.control,
+                  importance = "impurity",
+                  metric = "ROC")
+```
+
+The following displays tuning results and variable importance. Parameters that lead to the best performance (with an ROC of 0.946) were: 
+
+```{r}
+knitr::kable(xgb.tune$bestTune)
+
+knitr::kable(xgb.tune$results, caption = "XGBoost tuning results")
+
+plot(xgb.tune)
+```
+
+The following assesses variable importance. Interestingly, it appears that the variables considered "important" in the random forests are not important here (e.g. `wind.in.range.cdf` is much further down in the plot than it is with the random forest).
+
+```{r}
+plot(varImp(xgb.tune))
+```
+
+#### Fitting to the full training set
+
+```{r, eval=FALSE}
+# fit to full training set
+xgb.final <- train(did.exceed ~ .,
+                   data = train1,
+                   method = "xgbTree",
+                   tuneGrid = xgb.tune$bestTune,
+                   trControl = trainControl(method = "none",
+                                            verboseIter = TRUE,
+                                            classProbs = TRUE,
+                                            summaryFunction = twoClassSummary),
+                   importance = "impurity",
+                   metric = "ROC")
+```
+
+#### Assessing performance
+
+```{r, eval=FALSE}
+# # assess performance
+xgb.preds <- predict(xgb.final, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+
+# classification accuracy
+mean(xgb.preds$actual == xgb.preds$prediction) # 0.8955533
+
+# ROC/AUC
+xgb.roc.metric <- roc(predictions = xgb.preds$yes,
+                      labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+xgb.auc.metric <- auc(xgb.roc.metric)
+```
+
+The XGBoost fit to the full training set and tested on the held-out set achieved a classification accuracy of `r round(mean(xgb.preds$actual == xgb.preds$prediction)*100, 3)`%, and an ROC/AUC of: 
+
+```{r}
+plot(xgb.roc.metric, main = paste("XGBoost  -  AUC:", round(xgb.auc.metric,4)))
+```
+
+Confusion matrix of the model's predictions: 
+
+```{r}
+table(xgb.preds$prediction, xgb.preds$actual)
+```
+
+# Support vector machines
+
+The following code tunes and fits support vector machines with polynomial and linear kernels. 
+
+#### Parameter tuning
+
+```{r, eval=FALSE}
+# tuning svm with polynomial kernel
+tune.out <- tune(svm, did.exceed ~ .,
+                 data = train1,
+                 kernel = "polynomial",
+                 degree = 2,
+                 ranges = list(cost = c(.01, .1, .5, 1, 5, 7, 10)),
+                 probability = TRUE)
+```
+
+```{r}
+summary(tune.out)
+```
+
+
+The SVM that performed the best used a cost parameter of 7. 
+
+#### Fitting to the full training set
+
+```{r, eval=FALSE}
+# svm with tuned parameter on full training set
+svm.tuned <- svm(did.exceed ~ .,
+                 data = train1,
+                 kernel = "polynomial",
+                 degree = 2,
+                 cost = 7,
+                 probability = TRUE) # tuned cost parameter
+```
+
+#### Assessing performance
+
+```{r, eval=FALSE}
+# ------------------------------------------
+# assessing training error + ROC/AUC metric
+# ------------------------------------------
+train.preds <- predict(svm.tuned, newdata = train1, probability = TRUE)
+
+# classification accuracy
+mean(train.preds == train1$did.exceed) # 0.9222672
+
+# ROC/AUC
+train.roc <- roc(predictions = attr(train.preds, "probabilities")[ , 1],
+                 labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
+train.auc <- auc(train.roc)
+```
+
+The SVM achieved a training classification accuracy of `r round(mean(train.preds == train1$did.exceed)*100, 3)`%. Training ROC/AUC is: 
+
+```{r}
+plot(train.roc, main = paste("SVM, training metric  -  AUC:", round(train.auc, 3)))
+```
+
+```{r, eval=FALSE}
+# --------------------------------------
+# assessing test error + ROC/AUC metric
+# --------------------------------------
+test.preds <- predict(svm.tuned, newdata = test, probability = TRUE)
+
+# classification accuracy
+mean(test.preds == test$did.exceed) #  0.8738366
+
+# ROC/AUC
+test.roc <- roc(predictions = attr(test.preds, "probabilities")[ , 1],
+                labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+test.auc <- auc(test.roc)
+```
+
+Tested on the held-out set, the SVM achieved a classification accuracy of `r round(mean(test.preds == test$did.exceed)*100, 3)`%. ROC/AUC on the test set was: 
+
+```{r}
+plot(test.roc, main = paste("SVM, test metric  -  AUC:", round(test.auc, 3)))
+```
+
+The following code tunes a SVM with a linear kernel. 
+
+```{r svm with linear kernel, eval=FALSE}
+# tuning svm with linear kernel
+tune.out.linear <- tune(svm, did.exceed ~ ., 
+                        data = train1,
+                        kernel = "linear",
+                        ranges = list(cost = c(0.001, .01, .1, .5, 1, 5, 7, 10)),
+                        probability = TRUE)
+```
+
+```{r}
+summary(tune.out.linear) # best with C = 0.1
+```
+
+#### Fitting to the full training set
+
+```{r, eval=FALSE}
+svm.tuned.linear <- svm(did.exceed ~ ., 
+                        data = train1,
+                        kernel = "linear",
+                        cost = 0.1,
+                        probability = TRUE)
+```
+
+#### Assessing performance
+
+```{r, eval=FALSE}
+# ------------------------------------------
+# assessing training error + ROC/AUC metric
+# ------------------------------------------
+train.preds.linear <- predict(svm.tuned.linear, newdata = train1, probability = TRUE)
+
+# classification accuracy
+mean(train.preds.linear == train1$did.exceed) # 0.9157895
+
+# ROC/AUC
+train.roc.linear <- roc(predictions = attr(train.preds.linear, "probabilities")[ , 1],
+                        labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
+train.auc.linear <- auc(train.roc.linear)
+
+# --------------------------------------
+# assessing test error + ROC/AUC metric
+# --------------------------------------
+test.preds.linear <- predict(svm.tuned.linear, newdata = test, probability = TRUE)
+
+# classification accuracy
+mean(test.preds.linear == test$did.exceed) # 0.9079628
+
+# ROC/AUC
+test.roc.linear <- roc(predictions = attr(test.preds.linear, "probabilities")[ , 1],
+                       labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+test.auc.linear <- auc(test.roc.linear)
+```
+
+```{r training set performance}
+plot(train.roc.linear, main = paste("SVM with linear kernel, training metric - AUC:", round(train.auc.linear, 3))) # 0.841
+```
+
+```{r test set performance}
+plot(test.roc.linear, main = paste("SVM with linear kernel, test metric - AUC:", round(test.auc.linear, 3)))
+```
+
+The SVM training with a linear kernel performed much better than the model with a polynomial kernel (less evidence that the model is overfit). 
+
+# Decision tree
+
+```{r, eval=FALSE}
+treefit <- tree(did.exceed ~ ., data = train1, split = "gini")
+summary(treefit)
+
+# CV to determine optimal size of tree
+cv.treefit <- cv.tree(treefit, FUN = prune.misclass)
+plot(cv.treefit) # size = 9 did best
+
+pruned.tree <- prune.misclass(treefit, best = 9)
+summary(pruned.tree) #  0.09636 = 119 / 1235
+plot(pruned.tree)
+text(pruned.tree)
+
+# re-train again, using only variables in pruned tree
+vars <- unique(as.character(pruned.tree$frame[ , 1]))
+vars <- vars[-which(vars == "<leaf>")]
+new.train <- train1[ , c("did.exceed", vars)]
+
+new.tree <- tree(did.exceed ~ ., data = new.train, split = "gini")
+summary(new.tree) #  0.08259 = 102 / 1235
+
+# predict on test data
+tree.preds <- predict(new.tree, newdata = test) %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+
+# classification accuracy
+mean(tree.preds$actual == tree.preds$prediction) # 0.8924509
+
+# ROC/AUC
+roc.metric.tree <- roc(predictions = tree.preds$yes,
+                       labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+auc.metric.tree <- auc(roc.metric.tree)
+```
+
+The decision tree, pruned back to size 7, achieved a test set classification accuracy of `r round(mean(tree.preds$actual == tree.preds$prediction)*100, 3)`%. Test ROC/AUC for this model is:
+
+```{r}
+plot(roc.metric.tree, main = paste("Decision tree  -  AUC:", round(auc.metric.tree, 3)))
+```
+
+```{r}
+# confusion matrix
+# precision = 129 / (33 + 129) = 0.796
+# out of all that are being classified as high pm10 days - 79.6% are actually high pm10 days
+# recall = 129 / (71 + 129) = 0.645 
+# out of all days that are actually high pm10, 64.5% are actually being classified as such
+
+table(tree.preds$prediction, tree.preds$actual)
+```
+
+# Comparing models
+
+Based on ROC/AUC alone, the support vector machine with a linear kernel and a tuned cost parameter of 0.01 performed the best. 
+
+Overall, compared to the results in the first markdown, these models performed marginally worse (based on ROC). 
+
+```{r}
+par(mfrow = c(2, 2))
+plot(roc.metric, main = paste("Random Forest  -  AUC:", round(auc.metric, 4)))
+plot(xgb.roc.metric, main = paste("XGBoost  -  AUC:", round(xgb.auc.metric,4)))
+plot(test.roc.linear, main = paste("SVM w/ linear kernel  -  AUC:", round(test.auc.linear, 3)))
+plot(roc.metric.tree, main = paste("Decision tree  -  AUC:", round(auc.metric.tree, 4)))
+```
+
+
