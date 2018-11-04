@@ -104,12 +104,12 @@ cdf.clust <- polarCluster(cdf.training,
                           wd = "wd",
                           n.clusters = 2) # cluster 2 is high pm10 
 
-cdf.clust$data %>%
-  filter(cluster == 2) %>%
-  summarize(min_wd = min(wd),
-            max_wd = max(wd),
-            min_ws = min(ws),
-            max_ws = max(ws)) # CRITERIA: wd between 288 - 320, ws between 9.2 - 20.7
+# cdf.clust$data %>%
+#   filter(cluster == 2) %>%
+#   summarize(min_wd = min(wd),
+#             max_wd = max(wd),
+#             min_ws = min(ws),
+#             max_ws = max(ws)) # CRITERIA: wd between 288 - 320, ws between 9.2 - 20.7
 
 # ===
 # S1 
@@ -124,12 +124,12 @@ s1.clust <- polarCluster(s1.training,
                          wd = "wd",
                          n.clusters = 2)
 
-s1.clust$data %>%
-  filter(cluster == 2) %>%
-  summarize(min_wd = min(wd),
-            max_wd = max(wd),
-            min_ws = min(ws),
-            max_ws = max(ws)) # CRITERIA: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
+# s1.clust$data %>%
+#   filter(cluster == 2) %>%
+#   summarize(min_wd = min(wd),
+#             max_wd = max(wd),
+#             min_ws = min(ws),
+#             max_ws = max(ws)) # CRITERIA: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
 # ===================================================================
 # figure out clusters better
 
@@ -278,7 +278,7 @@ train1 <- train1 %>%
   left_join(cdf.master, by = "date") %>% 
   mutate(month = month(date)) %>% # create month and day.of.month variables
   mutate(day.of.month = day(date)) %>%
-  select(did.exceed, wind.in.range.cdf, wind.in.range.s1,
+  select(date, did.exceed, wind.in.range.cdf, wind.in.range.s1,
          max.ws.cdf, max.ws.s1,
          hour.max.ws.s1, hour.max.ws.cdf, 
          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
@@ -410,6 +410,8 @@ rf.tuning.1500 <- train(did.exceed ~ .,
                         metric = "ROC")
 rf.tuning.1500$bestTune
 knitr::kable(rf.tuning.1500$results, caption = "Tuning results with 1500 trees") # mtry = 5, min.node.size = 5
+
+plot(varImp(rf.tuning.500))
 ```
 
 ROC metrics above are pretty similar, indicating that no model performs drastically better than another. The model that performed the best with an ROC value of 0.953, used 1,500 trees with the following parameter values: 
