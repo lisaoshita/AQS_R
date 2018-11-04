@@ -24,7 +24,7 @@ library(xgboost)
 library(e1071) # for SVMs
 
 # load the workspace with tuning/model building results
-load("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/final.workspace.RData")
+load("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/final.workspace.RData")
 ```
 
 # Overview
@@ -48,197 +48,197 @@ Note: all code was commented out to cut down on the time it takes to knit this d
 
 This file uses data from S1 and CDF. Models were trained on data from 2011 - 2014 and tested on data from 2015 - 2017. The following code loads the data, partitions the data into training and test sets, and sets up variables. Before omitting all rows that contain missing values, the pattern of missing values was assessed with a missingness map from the Amelia package.
 
-```{r load data}
-# # read_csv is faster for larger files
-# s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv", 
-#                         col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
-#                                          pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
-#                                          ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
-# 
-# s1.cdf.data <- s1.cdf.data %>%
-#   mutate(date = parse_date_time(date, "Ymd HMS"))
-# 
-# # contains cdf and S1 data up to 2014
-# cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv",
-#                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
-#                                         pm10 = "n", u = "n", v = "n", year = "n", 
-#                                         precip = "n", s.rad = "n", a.temp = "n",
-#                                         rh = "n", dp = "n", s.temp = "n", height = "n",
-#                                         temp850 = "n", ws.max = "n", wd.max = "n",
-#                                         u.max = "n", v.max = "n", time = "n", dow = "n",
-#                                         u.s1 = "n", v.s1 = "n", u.max.s1 = "n", v.max.s1 = "n"))
-# 
-# cdf.master$date <- date(cdf.master$date)
-# 
-# # contains cdf and S1 data from 2014 - 2017
-# cdf.master2 <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.update.csv",
-#                         col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
-#                                         u = "n", v = "n", year = "n", precip = "n",
-#                                         s.rad = "n", a.temp = "n", rh = "n", dp = "n",
-#                                         s.temp = "n", height = "n", temp850 = "n", ws.max = "n",
-#                                         wd.max = "n", u.max = "n", v.max = "n", time = "n",
-#                                         dow = "n", u.s1 = "n", v.s1 = "n", u.max.s1 = "n",
-#                                         v.max.s1 = "n"))
-# 
-# cdf.master2$date <- date(cdf.master2$date)
+```{r load data, eval=FALSE}
+# read_csv is faster for larger files
+s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/forLisa.csv",
+                        col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
+                                         pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
+                                         ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
 
-# # ======== SET UP TRAINING DATA ===============================================================
-# # train on years before 2015
-# training <- s1.cdf.data %>%
-#   mutate(year = lubridate::year(date)) %>%
-#   mutate(date.only = lubridate::date(date)) %>%
-#   filter(year < 2015)
+s1.cdf.data <- s1.cdf.data %>%
+  mutate(date = parse_date_time(date, "Ymd HMS"))
+
+# contains cdf and S1 data up to 2014
+cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.csv",
+                       col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
+                                        pm10 = "n", u = "n", v = "n", year = "n",
+                                        precip = "n", s.rad = "n", a.temp = "n",
+                                        rh = "n", dp = "n", s.temp = "n", height = "n",
+                                        temp850 = "n", ws.max = "n", wd.max = "n",
+                                        u.max = "n", v.max = "n", time = "n", dow = "n",
+                                        u.s1 = "n", v.s1 = "n", u.max.s1 = "n", v.max.s1 = "n"))
+
+cdf.master$date <- date(cdf.master$date)
+
+# contains cdf and S1 data from 2014 - 2017
+cdf.master2 <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/cdf.master.update.csv",
+                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
+                                        u = "n", v = "n", year = "n", precip = "n",
+                                        s.rad = "n", a.temp = "n", rh = "n", dp = "n",
+                                        s.temp = "n", height = "n", temp850 = "n", ws.max = "n",
+                                        wd.max = "n", u.max = "n", v.max = "n", time = "n",
+                                        dow = "n", u.s1 = "n", v.s1 = "n", u.max.s1 = "n",
+                                        v.max.s1 = "n"))
+
+cdf.master2$date <- date(cdf.master2$date)
+
+# ======== SET UP TRAINING DATA ===============================================================
+# train on years before 2015
+training <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(year < 2015)
 
 
-# # finding wd and ws values at CDF and S1 that correspond with high pm10 concentrations
-# # using openair package
+# finding wd and ws values at CDF and S1 that correspond with high pm10 concentrations
+# using openair package
 
 # ====
-# CDF 
+# CDF
 # ====
-# cdf.training <- training %>%
-#   select(date, year, ws.cdf, wd.cdf, pm10.cdf)
-# colnames(cdf.training) <- c("date", "year", "ws", "wd", "pm10")
-# 
-# cdf.clust <- polarCluster(cdf.training, 
-#                           pollutant = "pm10",
-#                           x = "ws",
-#                           wd = "wd",
-#                           n.clusters = 2) # cluster 2 is high pm10 
-# 
-# cdf.clust$data %>%
-#   filter(cluster == 2) %>%
-#   summarize(min_wd = min(wd),
-#             max_wd = max(wd),
-#             min_ws = min(ws),
-#             max_ws = max(ws)) # CRITERIA: wd between 288 - 320, ws between 9.2 - 20.7
-# 
-# # ===
-# # S1 
-# # ===
-# s1.training <- training %>%
-#   select(date, year, wd.s1, ws.s1, pm10.cdf)
-# colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
-# 
-# s1.clust <- polarCluster(s1.training,
-#                          pollutant = "pm10",
-#                          x = "ws",
-#                          wd = "wd",
-#                          n.clusters = 2)
-# 
-# s1.clust$data %>%
-#   filter(cluster == 2) %>%
-#   summarize(min_wd = min(wd),
-#             max_wd = max(wd),
-#             min_ws = min(ws),
-#             max_ws = max(ws)) # CRITERIA: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
-# 
-# # =========================================================================================
-# 
-# # WD and WS variable set up 
-# # - maximum WS & WD at CDF and S1
-# # - hour of the day that WS and WD were at maximum
-# # - number of times that WS and WD fell within the range corresponding to high pm10 averages
-#
-# train1 <- training %>%
-#   group_by(date.only) %>%
-#   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE), 
-#             max.wd.cdf = max(wd.cdf, na.rm = TRUE),
-#             max.ws.s1 = max(ws.s1, na.rm = TRUE),
-#             max.wd.s1 = max(wd.s1, na.rm = TRUE),
-#             hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1), 
-#             hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
-#             hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
-#             hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
-#             ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE), 
-#             wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
-#             wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
-#             ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
-#   mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
-#   mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
-#   mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
-#   mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
-# 
-# # =========================================================================================
-# 
-# # computing pm10 avg 24 hr concentration
-# pm10.averages <- training %>%
-#   group_by(date.only) %>%
-#   summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
-#   mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
-# 
-# colnames(train1)[1] <- "date"
-# 
-# # merge train1 with other columns in cdf.master
-# train1 <- train1 %>%
-#   mutate(did.exceed = pm10.averages$did.exceed) %>% # add did.exceed response variable
-#   left_join(cdf.master, by = "date") %>% 
-#   mutate(month = month(date)) %>% # create month and day.of.month variables
-#   mutate(day.of.month = day(date)) %>%
-#   select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1,
-#          ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
-#          hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
-#          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
-# 
-# # =========================================================================================
-# 
-# # examining missing data w/ missingness map 
-# # Amelia::missmap(train1) # only 3% of the training data is missing - ok to omit these rows
-# train1 <- na.omit(train1) 
-# 
-# train1$did.exceed <- as.factor(train1$did.exceed)
-# 
-# # ======== SET UP TEST DATA ===============================================================
-# # test on years after 2015
-# testing <- s1.cdf.data %>%
-#   mutate(year = lubridate::year(date)) %>%
-#   mutate(date.only = lubridate::date(date)) %>%
-#   filter(year >= 2015)
-# 
-# # variable set up
-# test <- testing %>%
-#   group_by(date.only) %>%
-#   summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
-#             max.wd.cdf = max(wd.cdf, na.rm = TRUE),
-#             max.ws.s1 = max(ws.s1, na.rm = TRUE),
-#             max.wd.s1 = max(wd.s1, na.rm = TRUE),
-#             hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
-#             hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
-#             hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
-#             hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
-#             ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
-#             wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
-#             wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
-#             ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
-#   mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
-#   mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
-#   mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
-#   mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
-# 
-# colnames(test)[1] <- "date"
-# 
-# # computing 24 hour average pm10 concentration
-# pm10.averages.test <- testing %>%
-#   group_by(date.only) %>%
-#   summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
-#   mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
-# 
-# # merge test with other columns in cdf.master2
-# test <- test %>%
-#   mutate(did.exceed = pm10.averages.test$did.exceed) %>%
-#   left_join(cdf.master2, by = "date") %>%
-#   mutate(month = month(date)) %>%
-#   mutate(day.of.month = day(date)) %>%
-#   select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1, 
-#          ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
-#          hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf, 
-#          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
-# 
-# # assess rows with missing data
-# # Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
-# test <- na.omit(test) 
-# 
-# test$did.exceed <- as.factor(test$did.exceed)
+cdf.training <- training %>%
+  select(date, year, ws.cdf, wd.cdf, pm10.cdf)
+colnames(cdf.training) <- c("date", "year", "ws", "wd", "pm10")
+
+cdf.clust <- polarCluster(cdf.training,
+                          pollutant = "pm10",
+                          x = "ws",
+                          wd = "wd",
+                          n.clusters = 2) # cluster 2 is high pm10
+
+cdf.clust$data %>%
+  filter(cluster == 2) %>%
+  summarize(min_wd = min(wd),
+            max_wd = max(wd),
+            min_ws = min(ws),
+            max_ws = max(ws)) # CRITERIA: wd between 288 - 320, ws between 9.2 - 20.7
+
+# ===
+# S1
+# ===
+s1.training <- training %>%
+  select(date, year, wd.s1, ws.s1, pm10.cdf)
+colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
+
+s1.clust <- polarCluster(s1.training,
+                         pollutant = "pm10",
+                         x = "ws",
+                         wd = "wd",
+                         n.clusters = 2)
+
+s1.clust$data %>%
+  filter(cluster == 2) %>%
+  summarize(min_wd = min(wd),
+            max_wd = max(wd),
+            min_ws = min(ws),
+            max_ws = max(ws)) # CRITERIA: high pm10 if wd between 281 - 306, ws between 8.88 - 16.11
+
+# =========================================================================================
+
+# WD and WS variable set up
+# - maximum WS & WD at CDF and S1
+# - hour of the day that WS and WD were at maximum
+# - number of times that WS and WD fell within the range corresponding to high pm10 averages
+
+train1 <- training %>%
+  group_by(date.only) %>%
+  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.wd.cdf = max(wd.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            max.wd.s1 = max(wd.s1, na.rm = TRUE),
+            hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+            hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+            ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
+            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
+            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
+            ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
+  mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
+
+# =========================================================================================
+
+# computing pm10 avg 24 hr concentration
+pm10.averages <- training %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+
+colnames(train1)[1] <- "date"
+
+# merge train1 with other columns in cdf.master
+train1 <- train1 %>%
+  mutate(did.exceed = pm10.averages$did.exceed) %>% # add did.exceed response variable
+  left_join(cdf.master, by = "date") %>%
+  mutate(month = month(date)) %>% # create month and day.of.month variables
+  mutate(day.of.month = day(date)) %>%
+  select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1,
+         ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+         hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf,
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+# =========================================================================================
+
+# examining missing data w/ missingness map
+# Amelia::missmap(train1) # only 3% of the training data is missing - ok to omit these rows
+train1 <- na.omit(train1)
+
+train1$did.exceed <- as.factor(train1$did.exceed)
+
+# ======== SET UP TEST DATA ===============================================================
+# test on years after 2015
+testing <- s1.cdf.data %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(date.only = lubridate::date(date)) %>%
+  filter(year >= 2015)
+
+# variable set up
+test <- testing %>%
+  group_by(date.only) %>%
+  summarize(max.ws.cdf = max(ws.cdf, na.rm = TRUE),
+            max.wd.cdf = max(wd.cdf, na.rm = TRUE),
+            max.ws.s1 = max(ws.s1, na.rm = TRUE),
+            max.wd.s1 = max(wd.s1, na.rm = TRUE),
+            hour.max.wd.s1 = ifelse(length(which.max(wd.s1)) == 0, NA, which.max(wd.s1) - 1),
+            hour.max.ws.s1 = ifelse(length(which.max(ws.s1)) == 0, NA, which.max(ws.s1) - 1),
+            hour.max.wd.cdf = ifelse(length(which.max(wd.cdf)) == 0, NA, which.max(wd.cdf) - 1),
+            hour.max.ws.cdf = ifelse(length(which.max(ws.cdf)) == 0, NA, which.max(ws.cdf) - 1),
+            ws.in.range.cdf = sum((ws.cdf > 9), na.rm = TRUE),
+            wd.in.range.cdf = sum((wd.cdf > 288) & (wd.cdf < 320), na.rm = TRUE),
+            wd.in.range.s1 = sum((wd.s1 > 281) & (wd.s1 < 306), na.rm = TRUE),
+            ws.in.range.s1 = sum((ws.s1 > 8), na.rm = TRUE)) %>%
+  mutate(max.ws.cdf = ifelse(max.ws.cdf == -Inf, NA, max.ws.cdf)) %>%
+  mutate(max.wd.cdf = ifelse(max.wd.cdf == -Inf, NA, max.wd.cdf)) %>%
+  mutate(max.ws.s1 = ifelse(max.ws.s1 == -Inf, NA, max.ws.s1)) %>%
+  mutate(max.wd.s1 = ifelse(max.wd.s1 == -Inf, NA, max.wd.s1))
+
+colnames(test)[1] <- "date"
+
+# computing 24 hour average pm10 concentration
+pm10.averages.test <- testing %>%
+  group_by(date.only) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+
+# merge test with other columns in cdf.master2
+test <- test %>%
+  mutate(did.exceed = pm10.averages.test$did.exceed) %>%
+  left_join(cdf.master2, by = "date") %>%
+  mutate(month = month(date)) %>%
+  mutate(day.of.month = day(date)) %>%
+  select(did.exceed, ws.in.range.cdf, wd.in.range.cdf, wd.in.range.s1,
+         ws.in.range.s1, max.ws.cdf, max.wd.cdf, max.ws.s1, max.wd.s1,
+         hour.max.wd.s1, hour.max.ws.s1, hour.max.wd.cdf, hour.max.wd.cdf,
+         precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
+
+# assess rows with missing data
+# Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
+test <- na.omit(test)
+
+test$did.exceed <- as.factor(test$did.exceed)
 ```
 
 # Random forest
@@ -251,61 +251,74 @@ Tuning is performed with functions from the caret package. `tune.control` specif
 * `splitrule` determines how splits will be decided. 
 * `min.node.size` defines the minimum number of observations within a terminal node. 
 
-```{r}
+```{r, eval=FALSE}
 # parameter tuning set up
-# tune.control <- trainControl(method = "cv", 
-#                              number = 5,
-#                              verboseIter = FALSE,
-#                              classProbs = TRUE,
-#                              summaryFunction = twoClassSummary) # twoClassSummary: needed for ROC/AUC metrics
-#
-# grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))), 
-#                               8, 10, 15),
-#                     .splitrule = "gini",
-#                     .min.node.size = c(5, 10, 20))
+tune.control <- trainControl(method = "cv",
+                             number = 5,
+                             verboseIter = FALSE,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary) # twoClassSummary: needed for ROC/AUC metrics
+
+grid <- expand.grid(.mtry = c(round(sqrt(ncol(train1))),
+                              8, 10, 15),
+                    .splitrule = "gini",
+                    .min.node.size = c(5, 10, 20))
 ```
 
 Tuning is performed with the `train()` function from the caret package. Since the number of trees to grow is not a parameter than can be tuned by including it in the grid, tuning was performed three times to explore different values of `num.trees`. The following are tuning results. 
 
 More details on parameter tuning with the train function can be found [here](http://topepo.github.io/caret/train-models-by-tag.html).
 
+```{r, eval=FALSE}
+set.seed(1)
+
+tuning on 500 trees
+rf.tuning.500 <- train(did.exceed ~ .,
+                       data = train1,
+                       method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
+                       tuneGrid = grid,
+                       num.trees = 500,
+                       trControl = tune.control,
+                       importance = "impurity", # allows you to assess variable importance
+                       metric = "ROC")
+rf.tuning.500$bestTune
+```
+
 ```{r}
-# set.seed(1)
-#
-# tuning on 500 trees
-# rf.tuning.500 <- train(did.exceed ~ ., 
-#                        data = train1, 
-#                        method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
-#                        tuneGrid = grid, 
-#                        num.trees = 500,
-#                        trControl = tune.control,
-#                        importance = "impurity", # allows you to assess variable importance
-#                        metric = "ROC")
-# rf.tuning.500$bestTune 
 knitr::kable(rf.tuning.500$results, caption = "Tuning results with 500 trees") # mtry = 8, min.node.size = 5
+```
 
-# # tuning on 1000 trees
-# rf.tuning.1000 <- train(did.exceed ~ ., 
-#                         data = train1, 
-#                         method = "ranger", 
-#                         tuneGrid = grid, 
-#                         num.trees = 1000,
-#                         trControl = tune.control,
-#                         importance = "impurity",
-#                         metric = "ROC")
-# rf.tuning.1000$bestTune 
+```{r, eval=FALSE}
+# tuning on 1000 trees
+rf.tuning.1000 <- train(did.exceed ~ .,
+                        data = train1,
+                        method = "ranger",
+                        tuneGrid = grid,
+                        num.trees = 1000,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
+rf.tuning.1000$bestTune
+```
+
+```{r}
 knitr::kable(rf.tuning.1000$results, caption = "Tuning results with 1000 trees") # mtry = 5, min.node.size = 5
+```
 
-# # tuning on 1500 trees
-# rf.tuning.1500 <- train(did.exceed ~ ., 
-#                         data = train1, 
-#                         method = "ranger",
-#                         tuneGrid = grid, 
-#                         num.trees = 1500,
-#                         trControl = tune.control,
-#                         importance = "impurity",
-#                         metric = "ROC")
-# rf.tuning.1500$bestTune 
+```{r, eval=FALSE}
+# tuning on 1500 trees
+rf.tuning.1500 <- train(did.exceed ~ .,
+                        data = train1,
+                        method = "ranger",
+                        tuneGrid = grid,
+                        num.trees = 1500,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
+rf.tuning.1500$bestTune
+```
+
+```{r}
 knitr::kable(rf.tuning.1500$results, caption = "Tuning results with 1500 trees") # mtry = 5, min.node.size = 5
 ```
 
@@ -326,50 +339,52 @@ plot(varImp(rf.tuning.1500))
 
 The following fits the random forest with the optimal parameters found in the previous step, to the full training set and tests it on the held-out set.
 
-```{r}
+```{r, eval=FALSE}
 # ============= Set up parameters: 
-# final.grid <- data.frame(.mtry = 5, # contains the optimal parameters 
-#                          .splitrule = "gini",
-#                          .min.node.size = 5)
-# 
-# final.control <- trainControl(method = "none", # tells train() to fit the model to the full data without any partitioning
-#                               verboseIter = TRUE,
-#                               classProbs = TRUE,
-#                               summaryFunction = twoClassSummary)
+final.grid <- data.frame(.mtry = 5, # contains the optimal parameters
+                         .splitrule = "gini",
+                         .min.node.size = 5)
+
+final.control <- trainControl(method = "none", # tells train() to fit the model to the full data without any partitioning
+                              verboseIter = TRUE,
+                              classProbs = TRUE,
+                              summaryFunction = twoClassSummary)
 
 # ============= Fit the model: 
-# set.seed(1)
-# rf.fit <- train(did.exceed ~ .,
-#                 data = train1,
-#                 method = "ranger",
-#                 tuneGrid = final.grid,
-#                 trControl = final.control,
-#                 num.trees = 1500,
-#                 importance = "impurity",
-#                 metric = "ROC")
+set.seed(1)
+rf.fit <- train(did.exceed ~ .,
+                data = train1,
+                method = "ranger",
+                tuneGrid = final.grid,
+                trControl = final.control,
+                num.trees = 1500,
+                importance = "impurity",
+                metric = "ROC")
 ```
 
 #### Assessing performance
 
-```{r}
+```{r, eval=FALSE}
 # ============= Compute predictions: 
-# rf.preds <- predict(rf.fit, newdata = test, type = "prob")
-# 
-# rf.preds <- rf.preds %>%
-#   mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
-#   mutate(actual = test$did.exceed)
+rf.preds <- predict(rf.fit, newdata = test, type = "prob")
+
+rf.preds <- rf.preds %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
 ```
 
 The model achieved a classification accuracy of `r round(mean(rf.preds$actual == rf.preds$prediction) * 100, 3)`%.
 
 Because of class imbalance (`r round(sum(train1$did.exceed == "no")/nrow(train1)*100, 3)`% of the days in the training data did not exceed the PM10), metrics that might be better indicators of the model's performance is ROC and AUC. These measures take into account sensitivity (true positive rate) and specificity (true negative rate), rather than just counting the number of correct predictions, which, in our case, is biased. The following computes and displays ROC and AUC for this model, using the AUC package. 
 
-```{r}
+```{r, eval=FALSE}
 # ROC/AUC
-# roc.metric <- roc(predictions = rf.preds$yes,
-#                   labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
-# auc.metric <- auc(roc.metric)
+roc.metric <- roc(predictions = rf.preds$yes,
+                  labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+auc.metric <- auc(roc.metric)
+```
 
+```{r}
 # sensitivity: true positive rate - ability of the model to correctly identify wind event days
 # specificity: true negative rate - ability of the model to correctly identify non-wind event days
 plot(roc.metric, main = paste("Random Forest  -  AUC:", round(auc.metric, 4)))
@@ -391,29 +406,29 @@ XGBoost algorithms are a fairly new method of supervised learning that tend to p
 
 The following tunes some of the XGBoost parameters. This [link](https://xgboost.readthedocs.io/en/latest/parameter.html#parameters-for-tree-booster) provides details on each of the parameters.
 
-```{r}
+```{r, eval=FALSE}
 # # parameter tuning
-# xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
-#                              max_depth = c(3, 6, 10),
-#                              eta = 0.3,
-#                              gamma = 1,
-#                              min_child_weight = 1,
-#                              colsample_bytree = c(0.5, 0.8),
-#                              subsample = c(0.5, 0.8))
-# 
-# tune.control <- trainControl(method = "cv",
-#                              number = 5,
-#                              verboseIter = TRUE,
-#                              classProbs = TRUE,
-#                              summaryFunction = twoClassSummary)
-# 
-# xgb.tune <- train(did.exceed ~ .,
-#                   data = train1,
-#                   method = "xgbTree",
-#                   tuneGrid = xgb.tune.grid,
-#                   trControl = tune.control,
-#                   importance = "impurity",
-#                   metric = "ROC")
+xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
+                             max_depth = c(3, 6, 10),
+                             eta = 0.3,
+                             gamma = 1,
+                             min_child_weight = 1,
+                             colsample_bytree = c(0.5, 0.8),
+                             subsample = c(0.5, 0.8))
+
+tune.control <- trainControl(method = "cv",
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary)
+
+xgb.tune <- train(did.exceed ~ .,
+                  data = train1,
+                  method = "xgbTree",
+                  tuneGrid = xgb.tune.grid,
+                  trControl = tune.control,
+                  importance = "impurity",
+                  metric = "ROC")
 ```
 
 The following displays tuning results and variable importance. Parameters that lead to the best performance (with an ROC of 0.943) were: 
@@ -430,36 +445,36 @@ plot(varImp(xgb.tune))
 
 #### Fitting to the full training set
 
-```{r}
+```{r, eval=FALSE}
 # # fit to full training set
-# xgb.final <- train(did.exceed ~ .,
-#                    data = train1,
-#                    method = "xgbTree",
-#                    tuneGrid = xgb.tune$bestTune,
-#                    trControl = trainControl(method = "none",
-#                                             verboseIter = TRUE,
-#                                             classProbs = TRUE,
-#                                             summaryFunction = twoClassSummary),
-#                    importance = "impurity",
-#                    metric = "ROC")
+xgb.final <- train(did.exceed ~ .,
+                   data = train1,
+                   method = "xgbTree",
+                   tuneGrid = xgb.tune$bestTune,
+                   trControl = trainControl(method = "none",
+                                            verboseIter = TRUE,
+                                            classProbs = TRUE,
+                                            summaryFunction = twoClassSummary),
+                   importance = "impurity",
+                   metric = "ROC")
 ```
 
 #### Assessing performance
 
-```{r}
+```{r, eval=FALSE}
 # # assess performance
-# xgb.preds <- predict(xgb.final, newdata = test, type = "prob") %>%
-#   as.data.frame() %>%
-#   mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
-#   mutate(actual = test$did.exceed)
+xgb.preds <- predict(xgb.final, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
 
-# # classification accuracy
-# mean(xgb.preds$actual == xgb.preds$prediction)
+# classification accuracy
+mean(xgb.preds$actual == xgb.preds$prediction)
 
-# # ROC/AUC
-# xgb.roc.metric <- roc(predictions = xgb.preds$yes,
-#                       labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
-# xgb.auc.metric <- auc(xgb.roc.metric)
+# ROC/AUC
+xgb.roc.metric <- roc(predictions = xgb.preds$yes,
+                      labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+xgb.auc.metric <- auc(xgb.roc.metric)
 ```
 
 The XGBoost fit to the full training set and tested on the held-out set achieved a classification accuracy of `r round(mean(xgb.preds$actual == xgb.preds$prediction)*100, 3)`%, and an ROC/AUC of: 
@@ -484,44 +499,48 @@ Support vector machines use hyperplanes to partition the data. So they work well
 
 Parameter tuning was performed with the `tune()` function from the e1071 package (tuning with the `train()` function from the caret package consistently returned errors). 
 
+```{r, eval=FALSE}
+# tuning svm with polynomial kernel
+tune.out <- tune(svm, did.exceed ~ .,
+                 data = train1,
+                 kernel = "polynomial",
+                 degree = 2,
+                 ranges = list(cost = c(.01, .1, .5, 1, 5, 7, 10)))
+```
+
 ```{r}
-# # tuning svm with polynomial kernel
-# tune.out <- tune(svm, did.exceed ~ ., 
-#                  data = train1, 
-#                  kernel = "polynomial",
-#                  degree = 2,
-#                  ranges = list(cost = c(.01, .1, .5, 1, 5, 7, 10)))
 summary(tune.out)
 ```
+
 
 The SVM that performed the best, with an error rate of 0.104 (classification accuracy of 89.6%), used a cost parameter of 5. 
 
 #### Fitting to the full training set
 
-```{r}
-# # svm with tuned parameter on full training set
-# svm.tuned <- svm(did.exceed ~ ., 
-#                  data = train1,
-#                  kernel = "polynomial",
-#                  degree = 2,
-#                  cost = 5) # tuned cost parameter
+```{r, eval=FALSE}
+# svm with tuned parameter on full training set
+svm.tuned <- svm(did.exceed ~ .,
+                 data = train1,
+                 kernel = "polynomial",
+                 degree = 2,
+                 cost = 5) # tuned cost parameter
 ```
 
 #### Assessing performance
 
-```{r}
+```{r, eval=FALSE}
 # ------------------------------------------
 # assessing training error + ROC/AUC metric
 # ------------------------------------------
-# train.preds <- predict(svm.tuned, newdata = train1)
-# 
-# # classification accuracy
-# mean(train.preds == train1$did.exceed) # 0.9238866
-# 
-# # ROC/AUC 
-# train.roc <- roc(predictions = train.preds,
-#                  labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
-# train.auc <- auc(train.roc)
+train.preds <- predict(svm.tuned, newdata = train1)
+
+# classification accuracy
+mean(train.preds == train1$did.exceed) # 0.9238866
+
+# ROC/AUC
+train.roc <- roc(predictions = train.preds,
+                 labels = as.factor(ifelse(as.character(train1$did.exceed) == "yes", 1, 0)))
+train.auc <- auc(train.roc)
 ```
 
 The SVM achieved a training classification accuracy of `r round(mean(train.preds == train1$did.exceed)*100, 3)`%. Training ROC/AUC is: 
@@ -530,24 +549,24 @@ The SVM achieved a training classification accuracy of `r round(mean(train.preds
 plot(train.roc, main = paste("SVM, training metric  -  AUC:", round(train.auc, 3)))
 ```
 
-```{r}
-# # --------------------------------------
-# # assessing test error + ROC/AUC metric
-# # --------------------------------------
-# test.preds <- predict(svm.tuned, newdata = test)
-# 
-# # classification accuracy
-# mean(test.preds == test$did.exceed) # 0.8945191
-# 
-# # ROC/AUC
-# test.roc <- roc(predictions = test.preds,
-#                 labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
-# test.auc <- auc(test.roc)
+```{r, eval=FALSE}
+# --------------------------------------
+# assessing test error + ROC/AUC metric
+# --------------------------------------
+test.preds <- predict(svm.tuned, newdata = test)
+
+# classification accuracy
+mean(test.preds == test$did.exceed) # 0.8945191
+
+# ROC/AUC
+test.roc <- roc(predictions = test.preds,
+                labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+test.auc <- auc(test.roc)
 ```
 
 Tested on the held-out set, the SVM achieved a classification accuracy of `r round(mean(test.preds == test$did.exceed)*100, 3)`%. ROC/AUC on the test set was: 
 
-```{r}
+```{r, eval=FALSE}
 plot(test.roc, main = paste("SVM, test metric  -  AUC:", round(test.auc, 3)))
 ```
 
@@ -557,41 +576,41 @@ There is some evidence that this SVM was overfit to the training data - as indic
 
 The following fits a decision tree to the training data following a similar process used for the first decision tree [here](https://github.com/sloapcdkt/2016aqrptR/blob/master/appendix.R). 
 
-```{r}
-# treefit <- tree(did.exceed ~ ., data = train1, split = "gini" )
-# summary(treefit)
-#
-# # CV to determine optimal size of tree
-# cv.treefit <- cv.tree(treefit, FUN = prune.misclass)
-# cv.treefit
-# plot(cv.treefit) # size = 6 or 7 did best
-#
-# pruned.tree <- prune.misclass(treefit, best = 7)
-# summary(pruned.tree) #  0.09636 = 119 / 1235 
-# plot(pruned.tree)
-# text(pruned.tree)
-#
-# # re-train again, using only variables in pruned tree
-# vars <- unique(as.character(pruned.tree$frame[ , 1]))
-# vars <- vars[-which(vars == "<leaf>")]
-# new.train <- train1[ , c("did.exceed", vars)]
-#
-# new.tree <- tree(did.exceed ~ ., data = new.train, split = "gini")
-# summary(new.tree) #  0.08259 = 102 / 1235
-# 
-# # predict on test data 
-# tree.preds <- predict(new.tree, newdata = test) %>% 
-#   as.data.frame() %>%
-#   mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
-#   mutate(actual = test$did.exceed)
-# 
-# # classification accuracy
-# mean(tree.preds$actual == tree.preds$prediction) 
-# 
-# # ROC/AUC
-# roc.metric.tree <- roc(predictions = tree.preds$yes,
-#                        labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
-# auc.metric.tree <- auc(roc.metric.tree)
+```{r, eval=FALSE}
+treefit <- tree(did.exceed ~ ., data = train1, split = "gini" )
+summary(treefit)
+
+# CV to determine optimal size of tree
+cv.treefit <- cv.tree(treefit, FUN = prune.misclass)
+cv.treefit
+plot(cv.treefit) # size = 6 or 7 did best
+
+pruned.tree <- prune.misclass(treefit, best = 7)
+summary(pruned.tree) #  0.09636 = 119 / 1235
+plot(pruned.tree)
+text(pruned.tree)
+
+# re-train again, using only variables in pruned tree
+vars <- unique(as.character(pruned.tree$frame[ , 1]))
+vars <- vars[-which(vars == "<leaf>")]
+new.train <- train1[ , c("did.exceed", vars)]
+
+new.tree <- tree(did.exceed ~ ., data = new.train, split = "gini")
+summary(new.tree) #  0.08259 = 102 / 1235
+
+# predict on test data
+tree.preds <- predict(new.tree, newdata = test) %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+
+# classification accuracy
+mean(tree.preds$actual == tree.preds$prediction)
+
+# ROC/AUC
+roc.metric.tree <- roc(predictions = tree.preds$yes,
+                       labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+auc.metric.tree <- auc(roc.metric.tree)
 ```
 
 The decision tree, pruned back to size 7, achieved a test set classification accuracy of `r round(mean(tree.preds$actual == tree.preds$prediction)*100, 3)`%. Test ROC/AUC for this model is:
