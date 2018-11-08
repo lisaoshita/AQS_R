@@ -677,6 +677,10 @@ plot(test.roc.linear, main = paste("SVM with linear kernel, test metric - AUC:",
 
 The SVM training with a linear kernel performed much better than the model with a polynomial kernel (less evidence that the model is overfit). 
 
+TO DO : 
+* explain why i don't trust the ROC/AUC for SVMs
+* fit confusionMatrix for SVMs and all models + compare in compare models section 
+
 # Decision tree
 
 ```{r, eval=FALSE}
