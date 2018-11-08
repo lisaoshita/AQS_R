@@ -203,7 +203,7 @@ train1 <- train1 %>%
 # =========================================================================================
 
 # examining missing data w/ Missingness map 
-Amelia::missmap(train1) # only 4% of the training data is missing - ok to omit these rows
+# Amelia::missmap(train1) # only 4% of the training data is missing - ok to omit these rows
 train1 <- na.omit(train1) 
 
 train1$did.exceed <- as.factor(train1$did.exceed)
@@ -252,7 +252,7 @@ test <- test %>%
          precip, s.rad, a.temp, rh, dp, s.temp, height, temp850, month, day.of.month)
 
 # assess rows with missing data
-Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
+# Amelia::missmap(test) # only 2% of the training data is missing - ok to omit these rows
 test <- na.omit(test) 
 
 test$did.exceed <- as.factor(test$did.exceed)
