@@ -261,9 +261,9 @@ test$did.exceed <- as.factor(test$did.exceed)
 # Clean workspace
 
 ```{r}
-rm(cdf.clust, cdf.master, cdf.master2, cdf.range, cdf.range.chull,
-   cdf.training, dates.remove, s1.cdf.data, s1.clust, s1.range,
-   s1.range.chull, s1.training, cdf.preds, chull.index.cdf, 
-   chull.index.s1, s1.preds, make.x, make.y, wind.in.range)
+rm(cdf.clust, cdf.range, cdf.range.chull, 
+   cdf.training, pm10.averages, pm10.averages.test, 
+   s1.clust, s1.range, s1.range.chull, s1.training, testing, training, 
+   chull.index, make.x, make.y, wind.in.range)
 ```
 
