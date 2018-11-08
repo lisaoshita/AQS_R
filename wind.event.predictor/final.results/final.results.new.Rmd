@@ -23,14 +23,15 @@ library(tree) # for decision tree at bottom
 library(xgboost)
 library(e1071) # for SVMs
 
-load("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/final.workspace.new.RData")
+load("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/final.results/final.workspace.svm.edited.RData")
 ```
+
 
 # Overview
 
 This file contains the results/explanations of building the wind event predictors on the new data with revised variables (`wind.in.range`, `wd.at.max`). All code is generally the same as in `final.results.Rmd`. The main differences lie in the training and test sets. 
 
-Also, with the support vector machines, we discussed that the ROC plots looked incorrect. I found that `roc()` and `auc()` were working incorrectly because `svm()` was outputting the actual class predictions instead of class probabilites. The code in this file corrects that issue and displays the correct ROC/AUC for SVMs. 
+Also, with the support vector machines, we discussed that the ROC plots looked incorrect. I found that `roc()` and `auc()` were working incorrectly because `svm()` was outputting the actual class predictions instead of class probabilites. The code in this file corrects that issue. 
 
 # Setting up the data
 
@@ -42,7 +43,7 @@ The following code loads/formats the training and test sets. New variables inclu
 * `wd.at.max.cdf`: wind direction at CDF when wind speed was at maximum for the day
 
 ```{r load data, eval=FALSE}
-s1.cdf.data <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/forLisa.csv",
+s1.cdf.data <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/data/forLisa.csv",
                         col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
                                          pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
                                          ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
@@ -51,7 +52,7 @@ s1.cdf.data <- s1.cdf.data %>%
   mutate(date = parse_date_time(date, "Ymd HMS"))
 
 # contains cdf and S1 data up to 2014
-cdf.master <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/cdf.master.csv",
+cdf.master <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/data/cdf.master.csv",
                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
                                         pm10 = "n", u = "n", v = "n", year = "n", 
                                         precip = "n", s.rad = "n", a.temp = "n",
@@ -63,7 +64,7 @@ cdf.master <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predic
 cdf.master$date <- date(cdf.master$date)
 
 # contains cdf and S1 data from 2014 - 2017
-cdf.master2 <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/cdf.master.update.csv",
+cdf.master2 <- read_csv("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/data/cdf.master.update.csv",
                         col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
                                         u = "n", v = "n", year = "n", precip = "n",
                                         s.rad = "n", a.temp = "n", rh = "n", dp = "n",
@@ -265,7 +266,7 @@ test$did.exceed <- as.factor(test$did.exceed)
 ```
 
 ```{r clear workspace, eval=FALSE}
-rm(cdf.clust, cdf.range, cdf.range.chull,
+rm(cdf.clust, cdf.range, cdf.range.chull, 
    cdf.training, pm10.averages, s1.clust, 
    s1.range, s1.range.chull, s1.training, 
    testing, training, chull.index, make.x, 
@@ -537,6 +538,8 @@ table(xgb.preds$prediction, xgb.preds$actual)
 
 The following code tunes and fits support vector machines with polynomial and linear kernels. 
 
+**Note on SVM predicted class probabilities:** SVMs don't directly output predictions of probability. Instead, with the function used in this file, probabilities are computed based on the observation's distance from the hyperplane (the plane that partitions the data into classes) and a logistic distribution. 
+
 #### Parameter tuning
 
 ```{r, eval=FALSE}
@@ -553,9 +556,6 @@ tune.out <- tune(svm, did.exceed ~ .,
 summary(tune.out)
 ```
 
-
-The SVM that performed the best used a cost parameter of 7. 
-
 #### Fitting to the full training set
 
 ```{r, eval=FALSE}
@@ -564,7 +564,7 @@ svm.tuned <- svm(did.exceed ~ .,
                  data = train1,
                  kernel = "polynomial",
                  degree = 2,
-                 cost = 7,
+                 cost = tune.out$best.parameters$cost,
                  probability = TRUE) # tuned cost parameter
 ```
 
@@ -577,7 +577,7 @@ svm.tuned <- svm(did.exceed ~ .,
 train.preds <- predict(svm.tuned, newdata = train1, probability = TRUE)
 
 # classification accuracy
-mean(train.preds == train1$did.exceed) # 0.9222672
+mean(train.preds == train1$did.exceed)
 
 # ROC/AUC
 train.roc <- roc(predictions = attr(train.preds, "probabilities")[ , 1],
@@ -624,7 +624,7 @@ tune.out.linear <- tune(svm, did.exceed ~ .,
 ```
 
 ```{r}
-summary(tune.out.linear) # best with C = 0.1
+summary(tune.out.linear)
 ```
 
 #### Fitting to the full training set
@@ -633,7 +633,7 @@ summary(tune.out.linear) # best with C = 0.1
 svm.tuned.linear <- svm(did.exceed ~ ., 
                         data = train1,
                         kernel = "linear",
-                        cost = 0.1,
+                        cost = tune.out.linear$best.parameters$cost,
                         probability = TRUE)
 ```
 
@@ -646,7 +646,7 @@ svm.tuned.linear <- svm(did.exceed ~ .,
 train.preds.linear <- predict(svm.tuned.linear, newdata = train1, probability = TRUE)
 
 # classification accuracy
-mean(train.preds.linear == train1$did.exceed) # 0.9157895
+mean(train.preds.linear == train1$did.exceed) 
 
 # ROC/AUC
 train.roc.linear <- roc(predictions = attr(train.preds.linear, "probabilities")[ , 1],
@@ -659,7 +659,7 @@ train.auc.linear <- auc(train.roc.linear)
 test.preds.linear <- predict(svm.tuned.linear, newdata = test, probability = TRUE)
 
 # classification accuracy
-mean(test.preds.linear == test$did.exceed) # 0.9079628
+mean(test.preds.linear == test$did.exceed) 
 
 # ROC/AUC
 test.roc.linear <- roc(predictions = attr(test.preds.linear, "probabilities")[ , 1],
