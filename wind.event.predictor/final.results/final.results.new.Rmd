@@ -22,6 +22,7 @@ library(openair)
 library(tree) # for decision tree at bottom
 library(xgboost)
 library(e1071) # for SVMs
+library(kableExtra)
 
 load("/Users/lisaoshita/Desktop/repos/apcd_r/wind.event.predictor/final.results/final.workspace.svm.edited.RData")
 ```
@@ -314,7 +315,8 @@ rf.tuning.500$bestTune # allows you to view the parameter values that lead to th
 # ========
 # optimal parameters: mtry = 4, min.node.size = 20
 # ROC: 0.949
-knitr::kable(rf.tuning.500$results, caption = "Tuning results with 500 trees") 
+knitr::kable(rf.tuning.500$results, caption = "Tuning results with 500 trees") %>%
+  kable_styling(full_width = FALSE)
 ```
 
 ```{r, eval=FALSE}
@@ -338,7 +340,8 @@ rf.tuning.1000$bestTune
 # ========
 # optimal parameters: mtry = 4, min.node.size = 10
 # ROC: 0.9538
-knitr::kable(rf.tuning.1000$results, caption = "Tuning results with 1000 trees")
+knitr::kable(rf.tuning.1000$results, caption = "Tuning results with 1000 trees") %>%
+  kable_styling(full_width = FALSE)
 ```
 
 ```{r, eval=FALSE}
@@ -362,13 +365,15 @@ rf.tuning.1500$bestTune
 # ========
 # optimal parameters: mtry = 4, min.node.size = 5
 # ROC: 0.9539
-knitr::kable(rf.tuning.1500$results, caption = "Tuning results with 1500 trees") 
+knitr::kable(rf.tuning.1500$results, caption = "Tuning results with 1500 trees") %>%
+  kable_styling(full_width = FALSE)
 ```
 
 ROC metrics above are pretty similar, indicating that no model performs drastically better than another. Random forests with 1,000 trees and 1,500 trees achieved almost identical ROC scores. For the sake of computational speed, we'll go with the model built on 1,000 trees and the following parameter values:
 
 ```{r}
-knitr::kable(rf.tuning.1000$bestTune)
+knitr::kable(rf.tuning.1000$bestTune) %>%
+  kable_styling(full_width = FALSE)
 plot(rf.tuning.1000)
 ```
 
@@ -475,9 +480,11 @@ xgb.tune <- train(did.exceed ~ .,
 The following displays tuning results and variable importance. Parameters that lead to the best performance (with an ROC of 0.946) were: 
 
 ```{r}
-knitr::kable(xgb.tune$bestTune)
+knitr::kable(xgb.tune$bestTune) %>%
+  kable_styling(full_width = FALSE)
 
-knitr::kable(xgb.tune$results, caption = "XGBoost tuning results")
+knitr::kable(xgb.tune$results, caption = "XGBoost tuning results") %>%
+  kable_styling(full_width = FALSE)
 
 plot(xgb.tune)
 ```
@@ -540,7 +547,9 @@ The following code tunes and fits support vector machines with polynomial and li
 
 **Note on SVM predicted class probabilities:** SVMs don't directly output predictions of probability. Instead, with the function used in this file, probabilities are computed based on the observation's distance from the hyperplane (the plane that partitions the data into classes) and a logistic distribution. 
 
-#### Parameter tuning
+#### Polynomial kernel
+
+##### Parameter tuning
 
 ```{r, eval=FALSE}
 # tuning svm with polynomial kernel
@@ -556,7 +565,7 @@ tune.out <- tune(svm, did.exceed ~ .,
 summary(tune.out)
 ```
 
-#### Fitting to the full training set
+##### Fitting to the full training set
 
 ```{r, eval=FALSE}
 # svm with tuned parameter on full training set
@@ -568,7 +577,7 @@ svm.tuned <- svm(did.exceed ~ .,
                  probability = TRUE) # tuned cost parameter
 ```
 
-#### Assessing performance
+##### Assessing performance
 
 ```{r, eval=FALSE}
 # ------------------------------------------
@@ -612,7 +621,9 @@ Tested on the held-out set, the SVM achieved a classification accuracy of `r rou
 plot(test.roc, main = paste("SVM, test metric  -  AUC:", round(test.auc, 3)))
 ```
 
-The following code tunes a SVM with a linear kernel. 
+#### Linear kernel
+
+##### Parameter tuning
 
 ```{r svm with linear kernel, eval=FALSE}
 # tuning svm with linear kernel
@@ -627,7 +638,7 @@ tune.out.linear <- tune(svm, did.exceed ~ .,
 summary(tune.out.linear)
 ```
 
-#### Fitting to the full training set
+##### Fitting to the full training set
 
 ```{r, eval=FALSE}
 svm.tuned.linear <- svm(did.exceed ~ ., 
@@ -637,7 +648,7 @@ svm.tuned.linear <- svm(did.exceed ~ .,
                         probability = TRUE)
 ```
 
-#### Assessing performance
+##### Assessing performance
 
 ```{r, eval=FALSE}
 # ------------------------------------------
@@ -667,6 +678,9 @@ test.roc.linear <- roc(predictions = attr(test.preds.linear, "probabilities")[ ,
 test.auc.linear <- auc(test.roc.linear)
 ```
 
+* Classification accuracy on the training set: `r round(mean(train.preds.linear == train1$did.exceed), 3)`
+* Classification accuracy on the test set: `r round(mean(test.preds.linear == test$did.exceed), 3)`
+
 ```{r training set performance}
 plot(train.roc.linear, main = paste("SVM with linear kernel, training metric - AUC:", round(train.auc.linear, 3))) # 0.841
 ```
@@ -675,11 +689,28 @@ plot(train.roc.linear, main = paste("SVM with linear kernel, training metric - A
 plot(test.roc.linear, main = paste("SVM with linear kernel, test metric - AUC:", round(test.auc.linear, 3)))
 ```
 
-The SVM training with a linear kernel performed much better than the model with a polynomial kernel (less evidence that the model is overfit). 
+#### Note about ROC/AUC for SVMs
 
-TO DO : 
-* explain why i don't trust the ROC/AUC for SVMs
-* fit confusionMatrix for SVMs and all models + compare in compare models section 
+I am a little skeptical about the ROC/AUC for these SVMs. Compared to the test set performance of other models, I am a little hestitant about trusting that the SVM with the linear kernel performed so well on the test set. Classification accuracy for this model was just `r round(mean(test.preds.linear == test$did.exceed)*100, 3)`%, which is actually lower than the accuracy for the SVM with the polynomial kernel, `r round(mean(test.preds == test$did.exceed)*100, 3)`%, that achieved a much lower AUC of `r round(test.auc, 3)`. To look more into this matter, I used the `confusionMatrix()` function from the caret package for more details on model performance - since this function does not require class probabiliites. The following table compares the SVM with a polynomial vs. linear kernel. 
+
+```{r}
+svm.linear.cm <- confusionMatrix(data = test.preds.linear,
+                                 reference = test$did.exceed)
+svm.poly.cm <- confusionMatrix(data = test.preds,
+                               reference = test$did.exceed)
+
+# format metrics
+knitr::kable(data.frame(Metric = names(svm.linear.cm$byClass),
+           'Linear Kernel' = unname(round(svm.linear.cm$byClass, 3)),
+           'Polynomial Kernel' = unname(round(svm.poly.cm$byClass, 3))),
+           caption = "Metric comparison") %>%
+  kableExtra::kable_styling(full_width = F) %>%
+  kableExtra::row_spec(c(1, 2, 5, 6, 11), background = "yellow")
+```
+
+From the table above, one possible reason for the difference in ROC/AUC scores is that linear kernel's specificity (true negative rate) is much higher than it is for the model with the polynomial kernel. So, the SVM with the linear kernel does a much better job at classifying the days in which PM10 exceeded the standard (the model with the polynomial kernel only predicted 60.5% correctly).
+
+Also, after looking into the `svm` function documentation, I'm still confused about how probabilities are being computed and what exactly happens when `probability = TRUE` is included in the predict function call (`probability = TRUE` vs. `probability = FALSE` lead to slightly different class predictions). Because I'm hestitant about the ROC/AUC for SVMs, I've included output from `confusionMatrix()` for all models to be able to compare other metrics, besides classification accuracy and ROC/AUC, in the Comparing models section.
 
 # Decision tree
 
@@ -737,9 +768,9 @@ table(tree.preds$prediction, tree.preds$actual)
 
 # Comparing models
 
-Based on ROC/AUC alone, the support vector machine with a linear kernel and a tuned cost parameter of 0.01 performed the best. 
+#### Model comparisons based on ROC/AUC
 
-Overall, compared to the results in the first markdown, these models performed marginally worse (based on ROC). 
+Based on ROC/AUC alone, the support vector machine with a linear kernel and a tuned cost parameter of 0.01 performed the best. 
 
 ```{r}
 par(mfrow = c(2, 2))
@@ -749,4 +780,31 @@ plot(test.roc.linear, main = paste("SVM w/ linear kernel  -  AUC:", round(test.a
 plot(roc.metric.tree, main = paste("Decision tree  -  AUC:", round(auc.metric.tree, 4)))
 ```
 
+#### Model comparisons based on other metrics 
+
+```{r}
+rf.cm <- confusionMatrix(rf.preds$prediction, reference = test$did.exceed)
+xgb.cm <- confusionMatrix(xgb.preds$prediction, reference = test$did.exceed)
+tree.cm <- confusionMatrix(tree.preds$prediction, reference = test$did.exceed)
+
+# format metrics
+knitr::kable(data.frame(Metric = names(svm.linear.cm$byClass),
+           'Linear Kernel' = unname(round(svm.linear.cm$byClass, 3)),
+           'Polynomial Kernel' = unname(round(svm.poly.cm$byClass, 3)),
+           'Random forest' = unname(round(rf.cm$byClass, 3)),
+           'XGBoost' = unname(round(xgb.cm$byClass, 3)),
+           'Decision tree' = unname(round(tree.cm$byClass, 3)))) %>%
+  kableExtra::kable_styling(full_width = F) %>%
+  kableExtra::row_spec(c(1, 2, 5, 6, 11), background = "yellow")
+```
+
+Based on the table above, it also appears that the SVM with the linear kernel performed the best. Below are definitions of some metrics featured above. 
+
+* Sensitivity: True positive rate - if the classifier is able to accurately identify days in which PM10 did not exceed the standard
+* Specificity: True negative rate - if the classifier is able to accurately identify days in which PM10 did exceed the standard 
+* Precision: Of the days in which it was predicted that PM10 exceeded the standard, this is the percentage of those days that were true (days that PM10 actually did exceed the standard). 
+* Recall: Of all days that PM10 actually did exceed the standard, this is the percentage of those days that the classifier predicted correctly (predicted that PM10 exceeded the standard). 
+* Balanced accuracy: Good for imbalanced data sets - computed as: `(sensitivity + specificity)/2`
+
+This [link](https://topepo.github.io/caret/measuring-performance.html), under Measures for Predicted Classes, contains more information about each of these metrics. 
 
