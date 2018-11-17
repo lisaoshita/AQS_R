@@ -1,0 +1,574 @@
+---
+title: "New Model Results"
+date: "November 16, 2018"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+# load packages
+library(readr)
+library(lubridate) # for working with dates
+library(dplyr)
+library(caret)
+library(AUC)
+library(openair)
+library(tree) # for decision tree at bottom
+library(xgboost)
+library(e1071) # for SVMs
+library(kableExtra)
+
+load("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/new.workspace.RData")
+```
+
+# Overview 
+
+This file uses the hourly PM10 averages, wind.in.range variables and data from cdf.master (temperature, humidity...). All code for model building is the same as in the other files. See the last section, Comparing Models, for the final results. 
+
+# Setting up the data
+
+ The following code sets up training and test data. 
+
+```{r, eval=FALSE, collapse=TRUE}
+# ================================================
+# function to determine if points lie w/in range:
+# ================================================
+wind.in.range <- function(ws, wd, range) {
+  # assumes range is a two column df with "x" and "y"
+
+  # assumes ws and wd in usual format,
+  # so must convert to cartesian coords.
+  # define these functions again, in case they are not
+  # in environment:
+
+  make.x <- function(ws, wd){
+    ws*cos((90-wd)*pi/180)
+  }
+
+  make.y <- function(ws, wd){
+    ws*sin((90-wd)*pi/180)
+  }
+
+  xs <- make.x(ws, wd)
+  ys <- make.y(ws, wd)
+
+  # test if in range
+  res <- sp::point.in.polygon(xs, ys, range$x, range$y)
+
+  # return 0 if outside, 1 if inside or on edge, NA if ws or wd is missing
+  res <- ifelse(res == 0, 0, 1) # see ?point.in.polygon
+  res[is.na(ws) | is.na(wd)] <- NA # preserve NA's
+  return(res)
+}
+
+make.x <- function(ws, wd){
+  ws*cos((90-wd)*pi/180)
+}
+
+make.y <- function(ws, wd){
+  ws*sin((90-wd)*pi/180)
+}
+
+# load data
+s1.cdf.data <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/data/forLisa.csv",
+                        col_types = list(date = "c", ws.cdf = "n", wd.cdf = "n",
+                                         pm10.cdf = "n", pm10.oso = "n", wd.s1 = "n",
+                                         ws.s1 = "n", year = "n")) # contains data from 2011 - 2017
+
+# format
+s1.cdf.data <- s1.cdf.data %>%
+  mutate(date = parse_date_time(date, "Ymd HMS"))
+
+s1.cdf.data$hour <- hour(s1.cdf.data$date)
+s1.cdf.data <- s1.cdf.data %>% select(-pm10.oso)
+
+# ====
+# CDF
+# ====
+cdf.training <- s1.cdf.data %>%
+  filter(year(date) < 2015) %>%
+  select(date, year, ws.cdf, wd.cdf, pm10.cdf)
+colnames(cdf.training) <- c("date", "year", "ws", "wd", "pm10")
+
+cdf.clust <- polarCluster(cdf.training,
+                          pollutant = "pm10",
+                          x = "ws",
+                          wd = "wd",
+                          n.clusters = 2) # cluster 2 is high pm10
+
+# get cluster of high PM and create cartersian coordinates:
+cdf.range <- cdf.clust$data %>%
+  filter(cluster == 2) %>%
+  mutate(x = make.x(ws, wd)) %>%
+  mutate(y = make.y(ws, wd))
+
+# get convex hull
+chull.index <- chull(cdf.range$x, cdf.range$y)
+chull.index <- c(chull.index, chull.index[1])
+cdf.range.chull <- cdf.range[chull.index, c("x", "y")]
+
+# ===
+# S1
+# ===
+s1.training <- s1.cdf.data %>%
+  filter(year(date) >= 2015) %>%
+  select(date, year, wd.s1, ws.s1, pm10.cdf)
+colnames(s1.training) <- c("date", "year", "wd", "ws", "pm10")
+
+s1.clust <- polarCluster(s1.training,
+                         pollutant = "pm10",
+                         x = "ws",
+                         wd = "wd",
+                         n.clusters = 2)
+
+# get cluster of high PM and create cartersian coordinates:
+s1.range <- s1.clust$data %>%
+  filter(cluster == 2) %>%
+  mutate(x = make.x(ws, wd)) %>%
+  mutate(y = make.y(ws, wd))
+
+# get convex hull
+chull.index <- chull(s1.range$x, s1.range$y)
+chull.index <- c(chull.index, chull.index[1])
+s1.range.chull <- s1.range[chull.index, c("x", "y")]
+
+in.range.df <- s1.cdf.data %>%
+  group_by(date(date)) %>%
+  summarize(wind.in.range.cdf = sum(wind.in.range(ws.cdf, wd.cdf, cdf.range.chull), na.rm = TRUE),
+            wind.in.range.s1 = sum(wind.in.range(ws.s1, wd.s1, s1.range.chull), na.rm = TRUE))
+```
+
+```{r, eval=FALSE, collapse=TRUE}
+# converting to cartesian coords
+s1.cdf.data <- s1.cdf.data %>%
+  mutate(x.cdf = make.x(ws.cdf, wd.cdf)) %>%
+  mutate(y.cdf = make.y(ws.cdf, wd.cdf)) %>%
+  mutate(x.s1 = make.x(ws.s1, wd.s1)) %>%
+  mutate(y.s1 = make.y(ws.s1, wd.s1)) %>%
+  select(date, x.cdf, y.cdf, x.s1, y.s1, pm10.cdf, year, hour)
+
+# convert data from long to wide format
+d <- s1.cdf.data %>%
+  filter(hour == 0) %>%
+  select(-c(pm10.cdf, hour, year))
+names(d) <- c("date", paste(names(d)[-1], 0, sep = "."))
+
+for(i in 1:23){
+  dd <- s1.cdf.data %>%
+    filter(hour == i) %>%
+    select(-c(pm10.cdf, hour, year, date))
+  names(dd) <- paste(names(dd), i, sep = ".")
+  d <- cbind(d, dd)
+}
+
+rm(dd, i)
+
+d$date <- date(d$date)
+
+# computing pm10 avg 24 hr concentration
+pm10.averages <- s1.cdf.data %>%
+  group_by(date(date)) %>%
+  summarize(pm10.ave = mean(pm10.cdf, na.rm = TRUE)) %>%
+  mutate(did.exceed = ifelse(pm10.ave >= 50, "yes", "no"))
+colnames(pm10.averages)[1] <- "date"
+
+pm10.averages <- pm10.averages %>% select(date, did.exceed)
+
+# joining all data frames
+d <- d %>%
+  left_join(pm10.averages, by = "date")
+
+d <- na.omit(d)
+
+d$did.exceed <- as.factor(d$did.exceed)
+```
+
+```{r, eval=FALSE, collapse=TRUE}
+# contains cdf and S1 data up to 2014
+cdf.master <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/data/cdf.master.csv",
+                       col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n",
+                                        pm10 = "n", u = "n", v = "n", year = "n",
+                                        precip = "n", s.rad = "n", a.temp = "n",
+                                        rh = "n", dp = "n", s.temp = "n", height = "n",
+                                        temp850 = "n", ws.max = "n", wd.max = "n",
+                                        u.max = "n", v.max = "n", time = "n", dow = "n",
+                                        u.s1 = "n", v.s1 = "n", u.max.s1 = "n", v.max.s1 = "n"))
+
+cdf.master$date <- date(cdf.master$date)
+
+# contains cdf and S1 data from 2014 - 2017
+cdf.master2 <- read_csv("H:/TECH/Lisa/R/apcd.r/wind.event.predictor/data/cdf.master.update.csv",
+                        col_types = list(date = "c", ws = "n", wd = "n", pm25 = "n", pm10 = "n",
+                                        u = "n", v = "n", year = "n", precip = "n",
+                                        s.rad = "n", a.temp = "n", rh = "n", dp = "n",
+                                        s.temp = "n", height = "n", temp850 = "n", ws.max = "n",
+                                        wd.max = "n", u.max = "n", v.max = "n", time = "n",
+                                        dow = "n", u.s1 = "n", v.s1 = "n", u.max.s1 = "n",
+                                        v.max.s1 = "n"))
+
+cdf.master2$date <- date(cdf.master2$date)
+
+# combine the 2
+cdf.m <- rbind(cdf.master, cdf.master2)
+
+cdf.m <- cdf.m %>%
+  mutate(date = date(date)) %>%
+  select(date, precip, s.rad, a.temp, rh, dp,
+         s.temp, height, temp850)
+
+# join with the other df
+d <- d %>%
+  left_join(cdf.m, by = "date")
+
+d <- na.omit(d)
+```
+
+```{r, eval=FALSE, collapse=TRUE}
+colnames(in.range.df)[1] <- "date"
+
+d <- d %>%
+  left_join(in.range.df, by = "date")
+
+train <- d %>%
+  filter(year(date) < 2015) %>%
+  select(-date)
+
+test <- d %>%
+  filter(year(date) >= 2015
+
+test.dates <- test$date
+
+test <- test %>% select(-date)
+```
+
+# Random Forest
+
+### Parameter tuning
+
+```{r, eval=FALSE}
+# parameter tuning set up
+tune.control <- trainControl(method = "cv",
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary) # twoClassSummary: needed for ROC/AUC metrics
+
+grid <- expand.grid(.mtry = c(5, round(sqrt(ncol(train))),
+                              20, 30, 50),
+                    .splitrule = "gini",
+                    .min.node.size = c(5, 10, 20))
+```
+
+```{r, eval=FALSE}
+set.seed(1)
+
+# ====================
+# tuning on 500 trees
+# ====================
+rf.tuning.500 <- train(did.exceed ~ .,
+                       data = train,
+                       method = "ranger", # fast implementation of a random forest: ranger, e1071 need to be installed
+                       tuneGrid = grid,
+                       num.trees = 500,
+                       trControl = tune.control,
+                       importance = "impurity", # allows you to assess variable importance
+                       metric = "ROC")
+# ====================
+# tuning on 1000 trees
+# ====================
+rf.tuning.1000 <- train(did.exceed ~ .,
+                        data = train,
+                        method = "ranger",
+                        tuneGrid = grid,
+                        num.trees = 1000,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
+# ====================
+# tuning on 1500 trees
+# ====================
+rf.tuning.1500 <- train(did.exceed ~ .,
+                        data = train,
+                        method = "ranger",
+                        tuneGrid = grid,
+                        num.trees = 1500,
+                        trControl = tune.control,
+                        importance = "impurity",
+                        metric = "ROC")
+```
+
+### Fitting to the full training set
+
+```{r, eval=FALSE}
+final.control <- trainControl(method = "none", 
+                              verboseIter = TRUE,
+                              classProbs = TRUE,
+                              summaryFunction = twoClassSummary)
+set.seed(1)
+rf.fit <- train(did.exceed ~ .,
+                data = train,
+                method = "ranger",
+                tuneGrid = rf.tuning.500$bestTune,
+                trControl = final.control,
+                num.trees = 500,
+                importance = "impurity",
+                metric = "ROC")
+
+# ============= Compute predictions:
+rf.preds <- predict(rf.fit, newdata = test, type = "prob")
+
+rf.preds <- rf.preds %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+
+# ROC/AUC
+roc.metric <- roc(predictions = rf.preds$yes,
+                  labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+auc.metric <- auc(roc.metric)
+```
+
+# XGBoost
+
+### Parameter tuning
+
+```{r, eval=FALSE}
+# parameter tuning
+xgb.tune.grid <- expand.grid(nrounds = c(500, 1000),
+                             max_depth = c(3, 6, 10),
+                             eta = 0.3,
+                             gamma = 1,
+                             min_child_weight = 1,
+                             colsample_bytree = c(0.5, 0.8),
+                             subsample = c(0.5, 0.8))
+
+tune.control <- trainControl(method = "cv",
+                             number = 5,
+                             verboseIter = TRUE,
+                             classProbs = TRUE,
+                             summaryFunction = twoClassSummary)
+
+xgb.tune <- train(did.exceed ~ .,
+                  data = train,
+                  method = "xgbTree",
+                  tuneGrid = xgb.tune.grid,
+                  trControl = tune.control,
+                  importance = "impurity",
+                  metric = "ROC")
+```
+
+### Fitting to the full training set
+
+```{r, eval=FALSE}
+# fit to full training set
+xgb.final <- train(did.exceed ~ .,
+                   data = train,
+                   method = "xgbTree",
+                   tuneGrid = xgb.tune$bestTune,
+                   trControl = trainControl(method = "none",
+                                            verboseIter = TRUE,
+                                            classProbs = TRUE,
+                                            summaryFunction = twoClassSummary),
+                   importance = "impurity",
+                   metric = "ROC")
+
+# assess performance
+xgb.preds <- predict(xgb.final, newdata = test, type = "prob") %>%
+  as.data.frame() %>%
+  mutate(prediction = ifelse(yes > 0.50, "yes", "no")) %>%
+  mutate(actual = test$did.exceed)
+
+# classification accuracy
+mean(xgb.preds$actual == xgb.preds$prediction) # 0.9170507
+
+# ROC/AUC
+xgb.roc.metric <- roc(predictions = xgb.preds$yes,
+                      labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+xgb.auc.metric <- auc(xgb.roc.metric)
+``` 
+
+# SVM
+
+### Polynomial kernel
+
+```{r, eval=FALSE}
+tune.out <- tune(svm, did.exceed ~ .,
+                 data = train,
+                 kernel = "polynomial",
+                 degree = 2,
+                 ranges = list(cost = c(.01, .1, .5, 1, 5, 7, 10)),
+                 probability = TRUE)
+
+# fit to full training data
+svm.tuned <- svm(did.exceed ~ .,
+                 data = train,
+                 kernel = "polynomial",
+                 degree = 2,
+                 cost = tune.out$best.parameters$cost,
+                 probability = TRUE) # tuned cost parameter
+
+test.preds <- predict(svm.tuned, newdata = test, probability = TRUE)
+
+# ROC/AUC
+test.roc <- roc(predictions = attr(test.preds, "probabilities")[ , 2],
+                labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+test.auc <- auc(test.roc)
+```
+
+### Linear kernel
+
+```{r, eval=FALSE}
+tune.out.linear <- tune(svm, did.exceed ~ .,
+                        data = train,
+                        kernel = "linear",
+                        ranges = list(cost = c(0.001, .01, .1, .5)),
+                        probability = TRUE)
+
+# fit to full training data
+svm.tuned.linear <- svm(did.exceed ~ .,
+                        data = train,
+                        kernel = "linear",
+                        cost = tune.out.linear$best.parameters$cost,
+                        probability = TRUE)
+
+test.preds.linear <- predict(svm.tuned.linear, newdata = test, probability = TRUE)
+
+# ROC/AUC
+test.roc.linear <- roc(predictions = attr(test.preds.linear, "probabilities")[ , 2],
+                       labels = as.factor(ifelse(as.character(test$did.exceed) == "yes", 1, 0)))
+test.auc.linear <- auc(test.roc.linear)
+```
+
+# Comparing Models
+
+### ROC/AUC
+
+```{r}
+par(mfrow = c(2, 2))
+
+plot(xgb.roc.metric, main = paste("XGBoost  -  AUC:", round(xgb.auc.metric,4)))
+plot(roc.metric, main = paste("Random Forest  -  AUC:", round(auc.metric, 4))) # 0.9472402
+plot(test.roc.linear, main = paste("SVM with linear kernel  -  AUC:", round(test.auc.linear, 3))) # 0.891
+plot(test.roc, main = paste("SVM with polynomial kernel  -  AUC:", round(test.auc, 3)))
+```
+
+### Classification Accuracy
+
+```{r}
+model_results <- data.frame(model = c("XGBoost", "Random Forest", "SVM, linear kernel", "SVM, polynomial kernel"),
+           classification_accuracy = c(mean(xgb.preds$actual == xgb.preds$prediction),
+                                       mean(rf.preds$actual == rf.preds$prediction),
+                                       mean(test.preds.linear == test$did.exceed),
+                                       mean(test.preds == test$did.exceed)))
+
+knitr::kable(model_results %>%
+  arrange(desc(classification_accuracy))) %>%
+  kable_styling(full_width = F)
+```
+
+### Other Metrics
+
+```{r}
+rf.cm <- confusionMatrix(as.factor(rf.preds$prediction), reference = rf.preds$actual)
+xgb.cm <- confusionMatrix(as.factor(xgb.preds$prediction), reference = test$did.exceed)
+svm.linear.cm <- confusionMatrix(data = as.factor(test.preds.linear), reference = test$did.exceed)
+svm.poly.cm <- confusionMatrix(data = as.factor(test.preds), reference = test$did.exceed)
+
+# format metrics
+knitr::kable(data.frame(Metric = names(svm.linear.cm$byClass),
+           'Linear Kernel' = unname(round(svm.linear.cm$byClass, 3)),
+           'Polynomial Kernel' = unname(round(svm.poly.cm$byClass, 3)),
+           'Random forest' = unname(round(rf.cm$byClass, 3)),
+           'XGBoost' = unname(round(xgb.cm$byClass, 3)))) %>%
+  kableExtra::kable_styling(full_width = F) %>%
+  kableExtra::row_spec(c(1, 2, 5, 6, 11), background = "yellow")
+```
+
+### Variable Importance
+
+#### Random Forest
+
+```{r}
+varImp(rf.fit)
+```
+
+#### XGBoost
+
+```{r}
+varImp(xgb.final)
+```
+
+# Misclassified Observations
+
+Examining the days the XGBoost missclassified
+
+```{r}
+misclass.df <- cbind(test, xgb.preds) %>%
+  mutate(is.correct = ifelse(prediction == actual, 1, 0)) %>%
+  mutate(date = test.dates) %>%
+  filter(is.correct == 0)
+
+table(misclass.df$actual)
+# misclassifying more high pm10 days
+```
+
+```{r}
+# looking at the days that should have been classified as high pm10
+s1.coords <- misclass.df %>%
+  filter(did.exceed == "yes") %>%
+  select(contains("s1"), -wind.in.range.s1)
+
+# convert coords to long form - so we can plot it
+s1.coords.long <- data.frame(x = s1.coords$x.s1.0, y = s1.coords$y.s1.0)
+for (i in seq(2, 46, by = 2)) { 
+  to.bind <- s1.coords[ , (i + 1):(i + 2)]
+  colnames(to.bind) <- c("x", "y")
+  s1.coords.long <- rbind(s1.coords.long, to.bind)
+}
+
+rm(to.bind, i)
+
+# plot it
+plot(s1.range$x, s1.range$y,  
+     ylim = c(-15, 15), xlim = c(-15, 15),
+     asp = 1, pch = 16, cex = 0.5,
+     main = "S1 - Misclassified observations in blue")
+
+lines(s1.range.chull$x, s1.range.chull$y,
+      col = "red") 
+
+points(s1.coords.long$x, s1.coords.long$y, col = "blue")
+```
+
+
+```{r}
+cdf.coords <- misclass.df %>%
+  filter(did.exceed == "yes") %>%
+  select(contains("cdf"), -wind.in.range.cdf)
+
+cdf.coords.long <- data.frame(x = cdf.coords$x.cdf.0, y = cdf.coords$y.cdf.0)
+
+for (i in seq(2, 46, by = 2)) {
+  to.bind <- cdf.coords[ , (i + 1):(i + 2)]
+  colnames(to.bind) <- c("x", "y")
+  cdf.coords.long <- rbind(cdf.coords.long, to.bind)
+}
+
+# plot it
+plot(cdf.range$x, cdf.range$y,  
+     ylim = c(-15, 15), xlim = c(-15, 15),
+     asp = 1, pch = 16, cex = 0.5,
+     main = "CDF - Misclassified observations in blue")
+
+lines(cdf.range.chull$x, cdf.range.chull$y,
+      col = "red") # add to current plot
+
+points(cdf.coords.long$x, cdf.coords.long$y, col = "blue")
+```
+
