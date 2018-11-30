@@ -1,0 +1,286 @@
+---
+title: "Finding an Evening Threshold"
+author: "Lisa Oshita"
+date: "November 30, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(readr)
+library(dplyr)
+library(lubridate)
+```
+
+# Overview
+
+The following investigates the possibility of including an evening threshold for the current text alert algorithm. 
+
+# Load and format the data
+
+```{r load and format data, message=FALSE}
+arch.cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-cdf.csv",
+                     col_types = list(wsv = "n", wdv = "n", sigt = "n",
+                                      bam10 = "n", bam25 = "n", date = "c"))
+
+arch.cdf <- arch.cdf %>%
+  mutate(date = parse_date_time(date, "Y!-m!*-d! H!:M!:S!")) %>%
+  mutate(day = lubridate::date(date)) %>%
+  filter(lubridate::year(date) > 2009)
+
+colnames(arch.cdf)[4] <- "pm"
+
+# format data ---------------------------------------
+cdf <- arch.cdf %>%
+  mutate(pm = ifelse(pm > 800, NA, pm)) %>%
+  mutate(hour = lubridate::hour(date))
+
+# remove days with < 75% completeness
+to.remove <- cdf %>%
+  group_by(day) %>%
+  summarize(prop.complete = 1 - sum(is.na(pm))/24) %>%
+  filter(prop.complete < 0.75)
+
+cdf <- arch.cdf %>%
+  filter(!day %in% to.remove$day) %>%
+  mutate(hour = lubridate::hour(date))
+
+rm(to.remove)
+```
+
+# Without evening threshold
+
+```{r}
+# initialize functions for testing accuracy
+trigger.alert <- function(data, trigger) { # function to determine if alert should be sent out based on trigger
+  sapply(data, function(a) sum((a$pm > trigger) & (a$hour > 8), na.rm = TRUE) > 0)
+} # added in the restriction that in order for an alert to be triggered, hourly average must be greater than the trigger value at a time later than 8:00am
+
+means <- function(data) {
+  sapply(data, function(a) mean(a$pm, na.rm = TRUE)) # function to determine the mean pm for the day
+}
+
+acc <- function(pred, true){
+  sum(pred == true) / length(true)  
+}
+
+fpr <- function(pred, true){
+  sum(pred == TRUE & true == FALSE) / length(true)
+}
+
+fpr2 <- function(pred, true){
+  sum(pred == TRUE & true == FALSE) / sum(pred == TRUE)
+}
+
+fnr <- function(pred, true){
+  sum(pred == FALSE & true == TRUE) / length(true)
+}
+
+fnr2 <- function(pred, true){
+  sum(pred == FALSE & true == TRUE) / sum(pred == FALSE)
+}
+
+test.trigger <- function(data, trigger, thresh){
+  
+  true <- means(data) > thresh # days that actually exceeded 24 hour average
+  pred <- trigger.alert(data, trigger)
+  accuracy <- acc(pred, true)
+  false.pos <- fpr(pred, true)
+  false.pos2 <- fpr2(pred, true)
+  false.neg <- fnr(pred, true)
+  false.neg2 <- fnr2(pred, true)
+  true.rate <- sum(true)/length(true) # percentage of days that actually exceeded 24 hour average of 50
+  
+  ret <- c(thresh, true.rate, trigger, accuracy, false.pos, false.pos2, false.neg, false.neg2)
+  return(ret)
+}
+```
+
+```{r}
+# split arch.cdf into list by day
+cdf.list <- split(cdf, cdf$day)
+
+# run it! 
+thresh <- 50
+trigs <- c(seq(50, 400, by = 10), 160:180)
+results <- test.trigger(cdf.list, 40, thresh) # testing it with just a hourly average trigger of 40
+
+# testing it with a range of triggers
+for(i in 1:length(trigs)){
+  x <- test.trigger(cdf.list, trigs[i], thresh)
+  results <- rbind(results, x)
+  rm(x)
+} ; rm(i)
+
+results <- as.data.frame(results, row.names = 1:nrow(results))
+names(results) <- c("threshold", "true.rate", "trigger", "accuracy", 
+                    "false.pos", "false.pos2", "false.neg", "false.neg2")
+results <- results[order(results$trigger), ]
+
+# plot it!
+plot(results$trigger, results$accuracy, type = "l", ylim = c(0,1),
+     main = paste("Target 24-hr average:", thresh, "ug/m3"),
+     xlab = "Hourly concentration trigger (ug/m3)",
+     ylab = "%",
+     yaxt = "n")
+axis(2, at = (0:5)/5, labels = (0:5)*20 )
+lines(results$trigger, results$false.pos2, col=2)
+lines(results$trigger, results$false.pos, col=2, lty=2)
+lines(results$trigger, results$false.neg2, col=3)
+lines(results$trigger, results$false.neg, col=3, lty=2)
+
+legend("right", 
+       legend = c("Accuracy", "False Pos Rate", "Scaled False Pos Rate",
+                           "False Neg Rate", "Scaled False Neg Rate"),
+       lty = c(1, 2, 1, 2, 1),
+       col = c(1, 2, 2, 3, 3),
+       bty = "n")
+
+abline(v = results$trigger[which(results$accuracy == max(results$accuracy))[1]],
+       lty = 2)
+axis(1, 
+     at = results$trigger[which(results$accuracy == max(results$accuracy))[1]])
+```
+
+# Finding an evening threshold 
+
+* loop over a loop 
+* first loop: iterate over time ranges
+* second loop: iterate over trigger thresholds (within one iteration of a time range, iterate over different trigger thresholds)
+
+```{r}
+trigger.alert.evening.thresh <- function(data, trigger, evening.thresh) { # allows evening hour cutoff to vary
+  sapply(data, function(a) sum((a$pm > trigger) & (a$hour > 8) & (a$hour < evening.thresh), na.rm = TRUE) > 0)
+}
+
+test.trigger.2 <- function(data, trigger, thresh, evening.thresh){
+  true <- means(data) > thresh # days that actually exceeded 24 hour average
+  pred <- trigger.alert.evening.thresh(data, trigger, evening.thresh)
+  accuracy <- acc(pred, true)
+  false.pos <- fpr(pred, true)
+  false.pos2 <- fpr2(pred, true)
+  false.neg <- fnr(pred, true)
+  false.neg2 <- fnr2(pred, true)
+  true.rate <- sum(true)/length(true) # percentage of days that actually exceeded 24 hour average of 50
+  
+  ret <- c(thresh, true.rate, trigger, evening.thresh, accuracy, false.pos, false.pos2, false.neg, false.neg2)
+  return(ret)
+}
+
+
+evening.cutoff <- c(23:16) # test by iteratively excluding hours 16 - 23
+thresh <- 50
+trigs <- c(seq(50, 400, by = 10), 160:180)
+
+results2 <- data.frame(threshold = NA, 
+                       true.rate = NA,
+                       trigger = NA,
+                       evening.cutoff = NA,
+                       accuracy = NA,
+                       false.pos = NA,
+                       false.pos2 = NA,
+                       false.neg = NA,
+                       false.neg2 = NA)
+
+for (i in evening.cutoff) { 
+  for (t in trigs) {
+    results2 <- rbind(results2, test.trigger.2(cdf.list, trigger = t, thresh, evening.thresh = i))
+  }
+}; rm(i, t)
+
+results2 <- results2 %>% arrange(desc(accuracy)) %>% filter(!is.na(threshold))
+# trigger value of 179 and an evening cutoff at 17:00/5:00pm resulted in 92% accuracy
+```
+
+```{r}
+results.for.plot <- results2 %>% filter(evening.cutoff == 17) %>% arrange(trigger)
+plot(results.for.plot$trigger, results.for.plot$accuracy, type = "l", ylim = c(0,1),
+     main = paste("Target 24-hr average:", thresh, "ug/m3"),
+     xlab = "Hourly concentration trigger (ug/m3)",
+     ylab = "%",
+     yaxt = "n")
+axis(2, at = (0:5)/5, labels = (0:5)*20 )
+lines(results.for.plot$trigger, results.for.plot$false.pos2, col=2)
+lines(results.for.plot$trigger, results.for.plot$false.pos, col=2, lty=2)
+lines(results.for.plot$trigger, results.for.plot$false.neg2, col=3)
+lines(results.for.plot$trigger, results.for.plot$false.neg, col=3, lty=2)
+
+legend("right", 
+       legend = c("Accuracy", "False Pos Rate", "Scaled False Pos Rate",
+                           "False Neg Rate", "Scaled False Neg Rate"),
+       lty = c(1, 2, 1, 2, 1),
+       col = c(1, 2, 2, 3, 3),
+       bty = "n")
+
+abline(v = results.for.plot$trigger[which(results.for.plot$accuracy == max(results.for.plot$accuracy))[1]],
+       lty = 2)
+axis(1, at = results.for.plot$trigger[which(results.for.plot$accuracy == max(results.for.plot$accuracy))[1]])
+```
+
+
+# Comparing algorithms
+
+```{r}
+par(mfrow = c(1, 2))
+# no evening cutoff
+plot(results$trigger, results$accuracy, type = "l", ylim = c(0,1),
+     main = paste("No evening cutoff"),
+     xlab = "Hourly concentration trigger (ug/m3)",
+     ylab = "%",
+     yaxt = "n")
+axis(2, at = (0:5)/5, labels = (0:5)*20 )
+lines(results$trigger, results$false.pos2, col=2)
+lines(results$trigger, results$false.pos, col=2, lty=2)
+lines(results$trigger, results$false.neg2, col=3)
+lines(results$trigger, results$false.neg, col=3, lty=2)
+
+abline(v = results$trigger[which(results$accuracy == max(results$accuracy))[1]],
+       lty = 2)
+axis(1, 
+     at = results$trigger[which(results$accuracy == max(results$accuracy))[1]])
+
+# with evening cutoff of 17
+results.for.plot <- results2 %>% filter(evening.cutoff == 17) %>% arrange(trigger)
+plot(results.for.plot$trigger, results.for.plot$accuracy, type = "l", ylim = c(0,1),
+     main = paste("With an evening cutoff at 17:00"),
+     xlab = "Hourly concentration trigger (ug/m3)",
+     ylab = "%",
+     yaxt = "n")
+axis(2, at = (0:5)/5, labels = (0:5)*20 )
+lines(results.for.plot$trigger, results.for.plot$false.pos2, col=2)
+lines(results.for.plot$trigger, results.for.plot$false.pos, col=2, lty=2)
+lines(results.for.plot$trigger, results.for.plot$false.neg2, col=3)
+lines(results.for.plot$trigger, results.for.plot$false.neg, col=3, lty=2)
+
+legend("right", 
+       legend = c("Accuracy", "False Pos Rate", "Scaled False Pos Rate",
+                           "False Neg Rate", "Scaled False Neg Rate"),
+       lty = c(1, 2, 1, 2, 1),
+       col = c(1, 2, 2, 3, 3),
+       bty = "n")
+
+abline(v = results.for.plot$trigger[which(results.for.plot$accuracy == max(results.for.plot$accuracy))[1]],
+       lty = 2)
+axis(1, at = results.for.plot$trigger[which(results.for.plot$accuracy == max(results.for.plot$accuracy))[1]])
+```
+
+
+```{r}
+# without cutoff
+knitr::kable(results[which(results$accuracy == max(results$accuracy)), ], format = "html") %>%
+  kableExtra::kable_styling(full_width = F) %>%
+  kableExtra::column_spec(5, background = "yellow")
+```
+
+```{r}
+# with cutoff
+knitr::kable(results2[which(results2$accuracy == max(results2$accuracy)), ]) %>%
+  kableExtra::kable_styling(full_width = F) %>%
+  kableExtra::column_spec(5, background = "yellow")
+```
+
+
+
