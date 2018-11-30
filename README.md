@@ -3,4 +3,5 @@
 This repo contains the R scripts for:
 
 * AirAware text alerts 
-* loading AQS data 
+* functions for loading AQS data
+* wind event predictor algorithms and analysis
