@@ -26,11 +26,11 @@ rm(id)
 ###functions for testing accuracy
 
 predict <- function(data, trigger) {
-  sapply(data, function(a) sum(a$pm > trigger, na.rm = TRUE) > 0)
+  sapply(data, function(a) sum(a$pm > trigger, na.rm = TRUE) > 0) # returns a boolean for if a text will be triggered at all
 }
 
 means <- function(data) {
-  sapply(dd, function(a) mean(a$pm, na.rm = TRUE))
+  sapply(data, function(a) mean(a$pm, na.rm = TRUE))
 }
 
 acc <- function(pred, true){
@@ -55,10 +55,10 @@ fnr2 <- function(pred, true){
 
 test.trigger <- function(data, trigger, thresh){
   
-  true <- means(data) > thresh
-  pred <- predict(data, trigger)
-  accuracy <- acc(pred, true)
-  false.pos <- fpr(pred, true)
+  true <- means(data) > thresh # if the 24 hour average pm10 is greater than the threshold return TRUE
+  pred <- predict(data, trigger) # return true if algorithm will send out a text
+  accuracy <- acc(pred, true) # out of all days, how many times was the algorithm correct
+  false.pos <- fpr(pred, true) 
   false.pos2 <- fpr2(pred, true)
   false.neg <- fnr(pred, true)
   false.neg2 <- fnr2(pred, true)
@@ -67,7 +67,6 @@ test.trigger <- function(data, trigger, thresh){
   ret <- c(thresh, true.rate, trigger, accuracy, false.pos, false.pos2, false.neg, false.neg2)
   return(ret)
 }
-
 
 
 # run it! 
