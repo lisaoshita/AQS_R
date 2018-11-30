@@ -43,6 +43,8 @@ cdf <- arch.cdf %>%
   mutate(hour = lubridate::hour(date))
 
 rm(to.remove)
+
+# NOTE: this file also requires some of the functions from evening.threshold.Rmd
 ```
 
 # Plan
@@ -240,9 +242,48 @@ compare.df.season <- compare.df.season %>% mutate(diff.in.accuracy = accuracy.va
 compare.df.season
 ```
 
-```{r}
+# Test new thresholds on the full data 
 
+```{r}
+evening.cutoff <- 17
+
+
+trigger.alert.evening.thresh <- function(data, trigger, evening.thresh) { # allows evening hour cutoff to vary
+  sapply(data, function(a) sum((a$pm > trigger) & (a$hour > 8) & (a$hour < evening.thresh), na.rm = TRUE) > 0)
+}
+
+test.trigger.2 <- function(data, trigger, thresh, evening.thresh){
+  true <- means(data) > thresh # days that actually exceeded 24 hour average
+  pred <- trigger.alert.evening.thresh(data, trigger, evening.thresh)
+  accuracy <- acc(pred, true)
+  false.pos <- fpr(pred, true)
+  false.pos2 <- fpr2(pred, true)
+  false.neg <- fnr(pred, true)
+  false.neg2 <- fnr2(pred, true)
+  true.rate <- sum(true)/length(true) # percentage of days that actually exceeded 24 hour average of 50
+  
+  ret <- c(thresh, true.rate, trigger, evening.thresh, accuracy, false.pos, false.pos2, false.neg, false.neg2)
+  return(ret)
+}
+
+
+# results.seasons.full <- data.frame(threshold = NA, 
+#                        true.rate = NA,
+#                        trigger = NA,
+#                        evening.cutoff = NA,
+#                        accuracy = NA,
+#                        false.pos = NA,
+#                        false.pos2 = NA,
+#                        false.neg = NA,
+#                        false.neg2 = NA)
+# 
+# for (i in evening.cutoff) { 
+#   for (t in trigs) {
+#     results2 <- rbind(results2, test.trigger.2(cdf.list, trigger = t, thresh, evening.thresh = i))
+#   }
+# }; rm(i, t)
 ```
+
 
 
 
