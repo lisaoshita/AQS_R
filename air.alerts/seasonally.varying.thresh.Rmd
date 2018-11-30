@@ -1,0 +1,257 @@
+---
+title: "Exploring Seasonally Varying PM10 Threshold"
+author: "Lisa Oshita"
+date: "November 30, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(readr)
+library(dplyr)
+library(lubridate)
+```
+
+```{r load and format data, message=FALSE}
+arch.cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-cdf.csv",
+                     col_types = list(wsv = "n", wdv = "n", sigt = "n",
+                                      bam10 = "n", bam25 = "n", date = "c"))
+
+arch.cdf <- arch.cdf %>%
+  mutate(date = parse_date_time(date, "Y!-m!*-d! H!:M!:S!")) %>%
+  mutate(day = lubridate::date(date)) %>%
+  filter(lubridate::year(date) > 2009)
+
+colnames(arch.cdf)[4] <- "pm"
+
+# format data ---------------------------------------
+cdf <- arch.cdf %>%
+  mutate(pm = ifelse(pm > 800, NA, pm)) %>%
+  mutate(hour = lubridate::hour(date))
+
+# remove days with < 75% completeness
+to.remove <- cdf %>%
+  group_by(day) %>%
+  summarize(prop.complete = 1 - sum(is.na(pm))/24) %>%
+  filter(prop.complete < 0.75)
+
+cdf <- arch.cdf %>%
+  filter(!day %in% to.remove$day) %>%
+  mutate(hour = lubridate::hour(date))
+
+rm(to.remove)
+```
+
+# Plan
+
+* subset the data by month
+* perform the same "grid search" as in evening.threshold.Rmd
+* determine if there is a big difference in trigger thresholds across months
+* if there is - determine the best threshold for each month, then develop new alg that allows threshold to vary by month, and test on all data 
+* if no month to month differences - try seasons
+
+```{r}
+thresh <- 50
+trigs <- c(seq(50, 400, by = 10), 160:180)
+
+monthly <- list()
+
+for (i in 1:12) { 
+  cdf.by.month <- cdf %>% filter(lubridate::month(day) == i)
+  cdf.split <- split(cdf.by.month, cdf.by.month$day)
+  
+  monthly.results <- data.frame(threshold = NA, 
+                               true.rate = NA,
+                               trigger = NA,
+                               evening.cutoff = NA,
+                               accuracy = NA,
+                               false.pos = NA,
+                               false.pos2 = NA,
+                               false.neg = NA,
+                               false.neg2 = NA)
+  for (t in trigs) { 
+    monthly.results <- rbind(monthly.results, 
+                             test.trigger.2(cdf.split, trigger = t, thresh, evening.thresh = 17))
+    monthly.results <- monthly.results %>% filter(!is.na(threshold))
+  }
+  
+  monthly[[i]] <- monthly.results
+}; rm(i, t)
+
+# finding best threshold for each month
+jan <- monthly[[1]]
+feb <- monthly[[2]]
+mar <- monthly[[3]]
+apr <- monthly[[4]]
+may <- monthly[[5]]
+jun <- monthly[[6]]
+jul <- monthly[[7]]
+aug <- monthly[[8]]
+sept <- monthly[[9]]
+oct <- monthly[[10]]
+nov <- monthly[[11]]
+dec <- monthly[[12]]
+
+results.df <- rbind(jan[which(jan$accuracy == max(jan$accuracy))[1], ],
+                    feb[which(feb$accuracy == max(feb$accuracy))[1], ],
+                    mar[which(mar$accuracy == max(mar$accuracy))[1], ],
+                    apr[which(apr$accuracy == max(apr$accuracy))[1], ],
+                    may[which(may$accuracy == max(may$accuracy))[1], ],
+                    jun[which(jun$accuracy == max(jun$accuracy))[1], ],
+                    jul[which(jul$accuracy == max(jul$accuracy))[1], ],
+                    aug[which(aug$accuracy == max(aug$accuracy))[1], ],
+                    sept[which(sept$accuracy == max(sept$accuracy))[1], ],
+                    oct[which(oct$accuracy == max(oct$accuracy))[1], ],
+                    nov[which(nov$accuracy == max(nov$accuracy))[1], ],
+                    dec[which(dec$accuracy == max(dec$accuracy))[1], ])
+
+results.df <- cbind(data.frame(month = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
+                                             "Aug", "Sept", "Oct", "Nov", "Dec")),
+                        results.df)
+```
+
+# Compare results above to just using 175 for all months
+
+```{r}
+monthly.175 <- list()
+for (i in 1:12) { 
+  cdf.by.month <- cdf %>% filter(lubridate::month(day) == i)
+  cdf.split <- split(cdf.by.month, cdf.by.month$day)
+  
+  monthly.results.175 <- data.frame(threshold = NA, 
+                               true.rate = NA,
+                               trigger = NA,
+                               evening.cutoff = NA,
+                               accuracy = NA,
+                               false.pos = NA,
+                               false.pos2 = NA,
+                               false.neg = NA,
+                               false.neg2 = NA)
+  for (t in trigs) { 
+    monthly.results.175 <- rbind(monthly.results.175, 
+                             test.trigger.2(cdf.split, trigger = 179, thresh, evening.thresh = 17))
+    monthly.results.175 <- monthly.results.175 %>% filter(!is.na(threshold))
+  }
+  
+  monthly.175[[i]] <- monthly.results.175
+}; rm(i, t)
+
+# finding best threshold for each month
+jan.175 <- monthly.175[[1]]
+feb.175 <- monthly.175[[2]]
+mar.175 <- monthly.175[[3]]
+apr.175 <- monthly.175[[4]]
+may.175 <- monthly.175[[5]]
+jun.175 <- monthly.175[[6]]
+jul.175 <- monthly.175[[7]]
+aug.175 <- monthly.175[[8]]
+sept.175 <- monthly.175[[9]]
+oct.175 <- monthly.175[[10]]
+nov.175 <- monthly.175[[11]]
+dec.175 <- monthly.175[[12]]
+
+results.df.175 <- rbind(jan.175[which(jan.175$accuracy == max(jan.175$accuracy))[1], ],
+                    feb.175[which(feb.175$accuracy == max(feb.175$accuracy))[1], ],
+                    mar.175[which(mar.175$accuracy == max(mar.175$accuracy))[1], ],
+                    apr.175[which(apr.175$accuracy == max(apr.175$accuracy))[1], ],
+                    may.175[which(may.175$accuracy == max(may.175$accuracy))[1], ],
+                    jun.175[which(jun.175$accuracy == max(jun.175$accuracy))[1], ],
+                    jul.175[which(jul.175$accuracy == max(jul.175$accuracy))[1], ],
+                    aug.175[which(aug.175$accuracy == max(aug.175$accuracy))[1], ],
+                    sept.175[which(sept.175$accuracy == max(sept.175$accuracy))[1], ],
+                    oct.175[which(oct.175$accuracy == max(oct.175$accuracy))[1], ],
+                    nov.175[which(nov.175$accuracy == max(nov.175$accuracy))[1], ],
+                    dec.175[which(dec.175$accuracy == max(dec.175$accuracy))[1], ])
+
+results.df.175 <- cbind(data.frame(month = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
+                                             "Aug", "Sept", "Oct", "Nov", "Dec")),
+                        results.df.175)
+results.df.175
+```
+
+```{r}
+compare.df <- data.frame(month = results.df$month, 
+                         varying.thresh = results.df$trigger,
+                         accuracy.varying.thresh = results.df$accuracy,
+                         accuracy.thresh.179 = results.df.175$accuracy) %>%
+  mutate(diff.in.accuracy = accuracy.varying.thresh - accuracy.thresh.179)
+
+compare.df
+```
+
+# Now trying by seasons
+
+* December to February
+* March to June
+* July to September
+* October to November
+
+```{r}
+seasons <- list(c(12, 1, 2), c(3:6), c(7:9), c(10, 11))
+seasons.results <- list()
+
+for (i in 1:4) { 
+  cdf.by.season <- cdf %>% filter(lubridate::month(day) %in% seasons[[i]])
+  cdf.split <- split(cdf.by.season, cdf.by.season$day)
+  
+  season.res <- data.frame(threshold = NA, 
+                           true.rate = NA,
+                           trigger = NA,
+                           evening.cutoff = NA,
+                           accuracy = NA,
+                           false.pos = NA,
+                           false.pos2 = NA,
+                           false.neg = NA,
+                           false.neg2 = NA)
+  for (t in trigs) { 
+    season.res <- rbind(season.res, 
+                        test.trigger.2(cdf.split, trigger = t, thresh, evening.thresh = 17))
+    season.res <- season.res %>% filter(!is.na(threshold))
+  }
+  
+  seasons.results[[i]] <- season.res
+}; rm(i, t, season.res)
+
+winter <- seasons.results[[1]]
+spring <- seasons.results[[2]]
+summer <- seasons.results[[3]]
+fall <- seasons.results[[4]]
+
+results.df.seasons <- rbind(winter[which(winter$accuracy == max(winter$accuracy))[1], ],
+                            spring[which(spring$accuracy == max(spring$accuracy))[1], ],
+                            summer[which(summer$accuracy == max(summer$accuracy))[1], ],
+                            fall[which(fall$accuracy == max(fall$accuracy))[1], ])
+
+# comparing accuracies
+compare.df.season <- data.frame(season = c("winter", "spring", "summer", "fall"),
+                                varying.thresh = results.df.seasons$trigger,
+                                accuracy.varying.thresh = results.df.seasons$accuracy,
+                                accuracy.constant.thresh = c(mean(results.df.175$accuracy[c(1, 2, 12)]),
+                                                             mean(results.df.175$accuracy[c(3, 4, 5, 6)]),
+                                                             mean(results.df.175$accuracy[c(7, 8, 9)]),
+                                                             mean(results.df.175$accuracy[c(10, 11)]))) 
+compare.df.season <- compare.df.season %>% mutate(diff.in.accuracy = accuracy.varying.thresh - accuracy.constant.thresh)
+```
+
+```{r}
+compare.df.season
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
