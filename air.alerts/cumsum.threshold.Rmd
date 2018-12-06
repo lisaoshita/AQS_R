@@ -1,0 +1,208 @@
+---
+title: "Cumulative Sum Algorithm"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(dplyr)
+library(ggplot2)
+```
+
+# Overview
+
+The following tests an algorithm that uses a cumulative sum as the PM10 threshold trigger for AirAware text alerts (instead of a single hourly PM10 threshold).
+
+```{r load and format data, message=FALSE, eval=FALSE}
+arch.cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-cdf.csv",
+                     col_types = list(wsv = "n", wdv = "n", sigt = "n",
+                                      bam10 = "n", bam25 = "n", date = "c"))
+
+arch.cdf <- arch.cdf %>%
+  mutate(date = parse_date_time(date, "Y!-m!*-d! H!:M!:S!")) %>%
+  mutate(day = lubridate::date(date)) %>%
+  filter(lubridate::year(date) > 2009)
+
+colnames(arch.cdf)[4] <- "pm"
+
+# format data ---------------------------------------
+cdf <- arch.cdf %>%
+  mutate(pm = ifelse(pm > 800, NA, pm)) %>%
+  mutate(hour = lubridate::hour(date))
+
+# remove days with < 75% completeness
+to.remove <- cdf %>%
+  group_by(day) %>%
+  summarize(prop.complete = 1 - sum(is.na(pm))/24) %>%
+  filter(prop.complete < 0.75)
+
+cdf <- arch.cdf %>%
+  filter(!day %in% to.remove$day) %>%
+  mutate(hour = lubridate::hour(date))
+
+rm(to.remove)
+
+cdf.list <- split(cdf, cdf$day)
+```
+
+```{r load workspace}
+load("H:/TECH/Lisa/R/apcd.r/air.alerts/cumsum.workspace.RData")
+```
+
+# Finding thresholds
+
+```{r, eval=FALSE}
+# computing cumulative sums for each day
+compute.cumsum <- function(data) {
+  data <- data %>%
+    mutate(cumsum = cumsum(pm))
+  return(data)
+}
+
+cdf.df <- purrr::map_dfr(cdf.list, ~compute.cumsum(.))
+
+# split cdf.df by day
+cdf.cumsum.list <- split(cdf.df, cdf.df$day)
+
+# function to test different thresholds
+# returns list with dataframe of accuracy, fpr, fnn
+# and dataframe containing the daily information
+test.cumsum <- function(thresh) {
+  
+  pm10.avgs <- sapply(cdf.cumsum.list, function(a) mean(a$pm, na.rm = TRUE)) 
+  
+  # determine if text should be sent
+  trigger.text <- sapply(cdf.cumsum.list, 
+                         function(a, cumsum.thresh = thresh) sum(((a$cumsum >= cumsum.thresh) & 
+                                                                    (a$hour > 8) & 
+                                                                    (a$hour < 17)), 
+                                                                 na.rm = TRUE) > 0) 
+  
+  df <- data.frame(date = names(pm10.avgs),
+                   pm10.avgs = pm10.avgs,
+                   text.triggered = trigger.text)
+  
+  df <- df %>%
+    mutate(was.correct = ifelse((trigger.text == TRUE & pm10.avgs >= 50) | 
+                                  (trigger.text == FALSE & pm10.avgs < 50), TRUE, FALSE))
+  
+  # computing accuracy + other metrics
+  accuracy <- sum(df$was.correct) / nrow(df)
+  fpr <- sum((df$text.triggered == TRUE) & (df$was.correct == FALSE)) / nrow(df)
+  fnn <- sum((df$text.triggered == FALSE) & (df$was.correct == FALSE)) / nrow(df)
+  
+  results <- data.frame(cumsum.thresh = thresh,
+                        accuracy = accuracy,
+                        fpr = fpr,
+                        fnn = fnn)
+  print(thresh)
+  return(list(results, df))
+}
+
+
+
+cumsum.thresh <- seq(50, 3000, by = 10)
+
+cumsum.results <- purrr::map(cumsum.thresh, ~test.cumsum(.))
+
+# formatting results
+results.df <- cumsum.results[[1]][[1]]
+
+for (i in 2:length(cumsum.thresh)) {
+  results.df <- rbind(results.df, cumsum.results[[i]][[1]])
+}
+
+```
+
+# Results
+
+```{r}
+knitr::kable(head(results.df), digits = 3,
+             caption = "Displaying the first 6 results",
+             format = "html") %>%
+  kableExtra::kable_styling(full_width = F)
+```
+
+```{r}
+knitr::kable(results.df %>%
+  filter(accuracy == max(accuracy)), digits = 3,
+  caption = "Threshold that achieved the highest accuracy",
+  format = "html") %>%
+  kableExtra::kable_styling(full_width = F)
+  
+```
+
+```{r plot results}
+plot(results.df$cumsum.thresh, 
+     results.df$accuracy, 
+     type = "l", 
+     ylim = c(0,1),
+     main = paste("Target 24-hr average: 50 ug/m3"),
+     xlab = "Cumulative sum trigger (ug/m3)",
+     ylab = "%",
+     yaxt = "n")
+
+axis(2, at = (0:5)/5, labels = (0:5)*20)
+
+lines(results.df$cumsum.thresh, 
+      results.df$fpr, 
+      col=2)
+lines(results.df$cumsum.thresh, 
+      results.df$fnn, 
+      col=3)
+
+legend("right", 
+       legend = c("Accuracy", "False Pos Rate", "False Neg Rate"),
+       lty = c(1, 2, 2),
+       col = c(1, 2, 3),
+       bty = "n")
+
+abline(v = results.df$cumsum.thresh[which(results.df$accuracy == max(results.df$accuracy))[1]],
+       lty = 2)
+axis(1, 
+     at = results.df$cumsum.thresh[which(results.df$accuracy == max(results.df$accuracy))[1]])
+```
+
+# Time of day texts would be sent
+
+Finding the time of day texts would be sent with a cumulative sum trigger of 900.
+
+```{r, eval=FALSE}
+test.trigger <- function(data, trigger) {
+  
+  pm10.avg <- mean(data$pm, na.rm = TRUE)
+  trigger.text <- ifelse(length(which((data$cumsum >= trigger) & 
+                                        (data$hour > 8) & 
+                                        (data$hour < 17))) > 0, TRUE, FALSE)
+  if (trigger.text == TRUE) {
+    time.sent <- data$hour[which((data$cumsum >= trigger) & (data$hour > 8) & (data$hour < 17))]
+  } else {
+    time.sent <- NA
+  }
+  was.correct <- ifelse((trigger.text == TRUE & pm10.avg >= 50) | (trigger.text == FALSE & pm10.avg < 50), TRUE, FALSE)
+  results.df <- data.frame(date = date(data$date)[1],
+                         average.pm10 = pm10.avg,
+                         text.triggered = trigger.text,
+                         was.correct = was.correct,
+                         time.sent = time.sent)
+  return(results.df)
+}
+
+test.results <- purrr::map_dfr(cdf.cumsum.list, ~test.trigger(., trigger = 900))
+```
+
+```{r}
+test.results %>%
+  ggplot(aes(x = time.sent)) + 
+  geom_histogram(na.rm = TRUE, bins = 20) + 
+  xlab("Time sent")
+```
+
+
