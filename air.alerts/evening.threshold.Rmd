@@ -1,8 +1,11 @@
 ---
 title: "Finding an Evening Threshold"
 author: "Lisa Oshita"
-date: "November 30, 2018"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: true
 ---
 
 ```{r setup, include=FALSE}
