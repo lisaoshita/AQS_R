@@ -1,8 +1,10 @@
 ---
-title: "Exploring Seasonally Varying PM10 Threshold"
-author: "Lisa Oshita"
-date: "November 30, 2018"
-output: html_document
+title: "Exploring Seasonally/Monthly-Varying PM10 Thresholds"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: true
 ---
 
 ```{r setup, include=FALSE}
@@ -15,7 +17,11 @@ library(dplyr)
 library(lubridate)
 ```
 
-```{r load and format data, message=FALSE}
+# Overview
+
+This file investigates the possibility of seasonally/monthly varying PM10 thresholds for the AirAware text alerts. All analysis below is run with an 8:00am - 5:00pm cutoff. 
+
+```{r load and format data, message=FALSE, eval=FALSE}
 arch.cdf <- read_csv("H:/TECH/Lisa/R/apcd.r/air.alerts/arch-cdf.csv",
                      col_types = list(wsv = "n", wdv = "n", sigt = "n",
                                       bam10 = "n", bam25 = "n", date = "c"))
@@ -47,15 +53,62 @@ rm(to.remove)
 # NOTE: this file also requires some of the functions from evening.threshold.Rmd
 ```
 
-# Plan
+```{r load workspace with results}
+load("H:/TECH/Lisa/R/apcd.r/air.alerts/varying.threshold.workspace.RData")
+```
 
-* subset the data by month
-* perform the same "grid search" as in evening.threshold.Rmd
-* determine if there is a big difference in trigger thresholds across months
-* if there is - determine the best threshold for each month, then develop new alg that allows threshold to vary by month, and test on all data 
-* if no month to month differences - try seasons
+```{r create functions, eval=FALSE}
+# initialize functions for testing accuracy
+trigger.alert <- function(data, trigger) { # function to determine if alert should be sent out based on trigger
+  sapply(data, function(a) sum((a$pm > trigger) & (a$hour > 8), na.rm = TRUE) > 0)
+} # added in the restriction that in order for an alert to be triggered, hourly average must be greater than the trigger value at a time later than 8:00am
 
-```{r}
+means <- function(data) {
+  sapply(data, function(a) mean(a$pm, na.rm = TRUE)) # function to determine the mean pm for the day
+}
+
+acc <- function(pred, true){
+  sum(pred == true) / length(true)  
+}
+
+fpr <- function(pred, true){
+  sum(pred == TRUE & true == FALSE) / length(true)
+}
+
+fpr2 <- function(pred, true){
+  sum(pred == TRUE & true == FALSE) / sum(pred == TRUE)
+}
+
+fnr <- function(pred, true){
+  sum(pred == FALSE & true == TRUE) / length(true)
+}
+
+fnr2 <- function(pred, true){
+  sum(pred == FALSE & true == TRUE) / sum(pred == FALSE)
+}
+
+trigger.alert.evening.thresh <- function(data, trigger, evening.thresh) { # allows evening hour cutoff to vary
+  sapply(data, function(a) sum((a$pm > trigger) & (a$hour > 8) & (a$hour < evening.thresh), na.rm = TRUE) > 0)
+}
+
+test.trigger.2 <- function(data, trigger, thresh, evening.thresh){
+  true <- means(data) > thresh # days that actually exceeded 24 hour average
+  pred <- trigger.alert.evening.thresh(data, trigger, evening.thresh)
+  accuracy <- acc(pred, true)
+  false.pos <- fpr(pred, true)
+  false.pos2 <- fpr2(pred, true)
+  false.neg <- fnr(pred, true)
+  false.neg2 <- fnr2(pred, true)
+  true.rate <- sum(true)/length(true) # percentage of days that actually exceeded 24 hour average of 50
+  
+  ret <- c(thresh, true.rate, trigger, evening.thresh, accuracy, false.pos, false.pos2, false.neg, false.neg2)
+  return(ret)
+}
+```
+
+# Monthly-varying threshold 
+
+```{r, eval=FALSE}
 thresh <- 50
 trigs <- c(seq(50, 400, by = 10), 160:180)
 
@@ -115,9 +168,13 @@ results.df <- cbind(data.frame(month = c("Jan", "Feb", "Mar", "Apr", "May", "Jun
                         results.df)
 ```
 
-# Compare results above to just using 175 for all months
-
 ```{r}
+knitr::kable(results.df, digits = 3, format = "html") %>%
+    kableExtra::kable_styling(full_width = F)
+```
+
+```{r, eval=FALSE}
+# comparing accuracy of varying threshold to constant threshold of 179
 monthly.175 <- list()
 for (i in 1:12) { 
   cdf.by.month <- cdf %>% filter(lubridate::month(day) == i)
@@ -171,27 +228,31 @@ results.df.175 <- rbind(jan.175[which(jan.175$accuracy == max(jan.175$accuracy))
 results.df.175 <- cbind(data.frame(month = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul",
                                              "Aug", "Sept", "Oct", "Nov", "Dec")),
                         results.df.175)
-results.df.175
 ```
 
-```{r}
+```{r, eval=FALSE}
 compare.df <- data.frame(month = results.df$month, 
                          varying.thresh = results.df$trigger,
                          accuracy.varying.thresh = results.df$accuracy,
                          accuracy.thresh.179 = results.df.175$accuracy) %>%
   mutate(diff.in.accuracy = accuracy.varying.thresh - accuracy.thresh.179)
-
-compare.df
+colnames(compare.df) <- c("Month", "Monthly.varying.threshold", "Accuracy.varying.thresh", "Accuracy.179.thresh", "Difference.in.accuracy")
 ```
 
-# Now trying by seasons
-
-* December to February
-* March to June
-* July to September
-* October to November
-
 ```{r}
+knitr::kable(compare.df, digits = 3,
+             caption = "Comparing accuracy of monthly-varying thresholds to accuracy of constant threshold (179)", format = "html") %>%
+  kableExtra::kable_styling(full_width = F)
+```
+
+# Seasonally-varying threshold
+
+* Winter: December to February
+* Spring: March to June
+* Summer: July to September
+* Fall: October to November
+
+```{r, eval=FALSE}
 seasons <- list(c(12, 1, 2), c(3:6), c(7:9), c(10, 11))
 seasons.results <- list()
 
@@ -236,62 +297,175 @@ compare.df.season <- data.frame(season = c("winter", "spring", "summer", "fall")
                                                              mean(results.df.175$accuracy[c(7, 8, 9)]),
                                                              mean(results.df.175$accuracy[c(10, 11)]))) 
 compare.df.season <- compare.df.season %>% mutate(diff.in.accuracy = accuracy.varying.thresh - accuracy.constant.thresh)
+
+colnames(compare.df.season) <- c("Season", "Varying.threshold", "Accuracy.varying.thresh", "Accuracy.179.thresh", "Difference.in.accuracy")
 ```
 
 ```{r}
-compare.df.season
+knitr::kable(compare.df.season, digits = 3,
+             caption = "Comparing accuracy of seasonally-varying thresholds to accuracy of constant threshold (179)", format = "html") %>%
+  kableExtra::kable_styling(full_width = F)
 ```
 
-# Test new thresholds on the full data 
+# Test thresholds on full data 
 
-```{r}
+### Seasonally-varying thresholds
+
+```{r, eval=FALSE}
 evening.cutoff <- 17
+average.threshold <- 50
 
+cdf.list <- split(cdf, cdf$day)
+day <- cdf.list[[1]]
 
-trigger.alert.evening.thresh <- function(data, trigger, evening.thresh) { # allows evening hour cutoff to vary
-  sapply(data, function(a) sum((a$pm > trigger) & (a$hour > 8) & (a$hour < evening.thresh), na.rm = TRUE) > 0)
-}
-
-test.trigger.2 <- function(data, trigger, thresh, evening.thresh){
-  true <- means(data) > thresh # days that actually exceeded 24 hour average
-  pred <- trigger.alert.evening.thresh(data, trigger, evening.thresh)
-  accuracy <- acc(pred, true)
-  false.pos <- fpr(pred, true)
-  false.pos2 <- fpr2(pred, true)
-  false.neg <- fnr(pred, true)
-  false.neg2 <- fnr2(pred, true)
-  true.rate <- sum(true)/length(true) # percentage of days that actually exceeded 24 hour average of 50
+test.seasonal <- function(data){
   
-  ret <- c(thresh, true.rate, trigger, evening.thresh, accuracy, false.pos, false.pos2, false.neg, false.neg2)
-  return(ret)
+  # set trigger
+  if (month(data$date)[1] %in% c(12, 1, 2)) {trigger <- 270}
+  if (month(data$date)[1] %in% c(3, 4, 5, 6)) {trigger <- 170}
+  if (month(data$date)[1] %in% c(7, 8, 9)) {trigger <- 178}
+  if (month(data$date)[1] %in% c(10, 11)) {trigger <- 230}
+  
+  # checking if any values are greater than the trigger
+  trigger.text <- ifelse(length(which((data$pm >= trigger) & (data$hour > 8) & (data$hour < 17))) > 0, TRUE, FALSE)
+  pm10.average <- mean(data$pm, na.rm = TRUE)
+  was.correct <- ifelse((trigger.text == TRUE & pm10.average >= 50) | (trigger.text == FALSE & pm10.average < 50), TRUE, FALSE)
+  
+  
+  results.df <- data.frame(date = date(data$date)[1],
+                           average.pm10 = pm10.average,
+                           text.triggered = trigger.text,
+                           was.correct = was.correct)
+  
+  return(results.df)
+  
 }
 
-
-# results.seasons.full <- data.frame(threshold = NA, 
-#                        true.rate = NA,
-#                        trigger = NA,
-#                        evening.cutoff = NA,
-#                        accuracy = NA,
-#                        false.pos = NA,
-#                        false.pos2 = NA,
-#                        false.neg = NA,
-#                        false.neg2 = NA)
-# 
-# for (i in evening.cutoff) { 
-#   for (t in trigs) {
-#     results2 <- rbind(results2, test.trigger.2(cdf.list, trigger = t, thresh, evening.thresh = i))
-#   }
-# }; rm(i, t)
+seasonal.results <- purrr::map_dfr(cdf.list, ~test.seasonal(.))
 ```
 
+```{r}
+knitr::kable(head(seasonal.results),
+             caption = "Results of the seasonally-varying threshold algorithm for the first 6 days", format = "html") %>%
+  kableExtra::kable_styling(full_width = F) 
+```
 
+```{r}
+# OVERALL ACCURACY
+(seasonal.acc <- round(sum(seasonal.results$was.correct)/nrow(seasonal.results), 3))
 
+# FALSE POSITIVE RATE
+(seasonal.fpr <- round(sum((seasonal.results$text.triggered == TRUE) & (seasonal.results$was.correct == FALSE)) / nrow(seasonal.results), 3))
 
+# FALSE NEGATIVE RATE
+(seasonal.fnn <- round(sum((seasonal.results$text.triggered == FALSE) & (seasonal.results$was.correct == FALSE)) / nrow(seasonal.results), 3))
+```
 
+### Monthly-varying thresholds
 
+```{r, eval=FALSE}
+test.monthly <- function(data){
+  
+  # set trigger
+  if (month(data$date)[1] == 1) {trigger <- 163}
+  if (month(data$date)[1] == 2) {trigger <- 200}
+  if (month(data$date)[1] == 3) {trigger <- 170}
+  if (month(data$date)[1] == 4) {trigger <- 180}
+  if (month(data$date)[1] == 5) {trigger <- 130}
+  if (month(data$date)[1] == 6) {trigger <- 171}
+  if (month(data$date)[1] == 7) {trigger <- 210}
+  if (month(data$date)[1] == 8) {trigger <- 180}
+  if (month(data$date)[1] == 9) {trigger <- 160}
+  if (month(data$date)[1] == 10) {trigger <- 180}
+  if (month(data$date)[1] == 11) {trigger <- 280}
+  if (month(data$date)[1] == 12) {trigger <- 220}
+  
+  # checking if any values are greater than the trigger
+  trigger.text <- ifelse(length(which((data$pm >= trigger) & (data$hour > 8) & (data$hour < 17))) > 0, TRUE, FALSE)
+  pm10.average <- mean(data$pm, na.rm = TRUE)
+  was.correct <- ifelse((trigger.text == TRUE & pm10.average >= 50) | (trigger.text == FALSE & pm10.average < 50), TRUE, FALSE)
+  
+  
+  results.df <- data.frame(date = date(data$date)[1],
+                           average.pm10 = pm10.average,
+                           text.triggered = trigger.text,
+                           was.correct = was.correct)
+  
+  return(results.df)
+  
+}
 
+monthly.results <- purrr::map_dfr(cdf.list, ~test.monthly(.))
+```
 
+```{r}
+knitr::kable(head(monthly.results),
+             caption = "Results of the monthly-varying threshold algorithm for the first 6 days", format = "html") %>%
+  kableExtra::kable_styling(full_width = F) 
+```
 
+```{r}
+# OVERALL ACCURACY
+(monthly.acc <- round(sum(monthly.results$was.correct)/nrow(monthly.results), 3))
+
+# FALSE POSITIVE RATE
+(monthly.fpr <- round(sum((monthly.results$text.triggered == TRUE) & (monthly.results$was.correct == FALSE)) / nrow(monthly.results), 3))
+
+# FALSE NEGATIVE RATE
+(monthly.fnn <- round(sum((monthly.results$text.triggered == FALSE) & (monthly.results$was.correct == FALSE)) / nrow(monthly.results), 3))
+```
+
+### Constant threshold (179)
+
+```{r, eval=FALSE}
+test.constant.thresh <- function(data){
+  
+  # checking if any values are greater than the trigger
+  trigger.text <- ifelse(length(which((data$pm >= 179) & (data$hour > 8) & (data$hour < 17))) > 0, TRUE, FALSE)
+  pm10.average <- mean(data$pm, na.rm = TRUE)
+  was.correct <- ifelse((trigger.text == TRUE & pm10.average >= 50) | (trigger.text == FALSE & pm10.average < 50), TRUE, FALSE)
+  
+  
+  results.df <- data.frame(date = date(data$date)[1],
+                           average.pm10 = pm10.average,
+                           text.triggered = trigger.text,
+                           was.correct = was.correct)
+  
+  return(results.df)
+  
+}
+
+constant.thresh.results <- purrr::map_dfr(cdf.list, ~test.constant.thresh(.)) 
+```
+
+```{r}
+# OVERALL ACCURACY
+(constant.acc <- round(sum(constant.thresh.results$was.correct)/nrow(constant.thresh.results), 3))
+
+# FALSE POSITIVE RATE
+(constant.fpr <- round(sum((constant.thresh.results$text.triggered == TRUE) & 
+                             (constant.thresh.results$was.correct == FALSE)) / nrow(constant.thresh.results), 3))
+
+# FALSE NEGATIVE RATE
+(constant.fnn <- round(sum((constant.thresh.results$text.triggered == FALSE) & 
+                             (constant.thresh.results$was.correct == FALSE)) / nrow(constant.thresh.results), 3))
+```
+
+# Comparing thresholds
+
+```{r, eval=FALSE}
+comparisons <- data.frame(Constant.threshold = c(constant.acc, constant.fpr, constant.fnn),
+                          Monthly.varying = c(monthly.acc, monthly.fpr, monthly.fnn),
+                          Seasonally.varying = c(seasonal.acc, seasonal.fpr, seasonal.fnn))
+
+rownames(comparisons) <- c("Accuracy", "False positive rate", "False negative rate")
+```
+
+```{r}
+knitr::kable(comparisons,
+             caption = "Comparing accuracy, false positive rate, false negative rate across the different thresholds", format = "html") %>%
+  kableExtra::kable_styling(full_width = F) 
+```
 
 
 
